@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "988770331813",
+    "project_id": "starring-a6125",
+    "storage_bucket": "starring-a6125.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:988770331813:android:39ab10a9168e16c086f14c",
+        "android_client_info": {
+          "package_name": "com.example.starring"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrr57J4_34YRl7x_00vz-2vJSlBd9ezik"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
