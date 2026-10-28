@@ -13,3 +13,15 @@
 .externalNativeBuild
 .cxx
 local.properties
+# Environment variables
+.env
+.env.*
+!.env.example
+secrets.properties
+
+# Private keys and credentials
+*.jks
+*.keystore
+*.pem
+*.p12
+*serviceAccountKey*.json
