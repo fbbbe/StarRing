@@ -1,17 +1,24 @@
-package com.example.starring.auth;
+package com.example.starring.common;
 
+import com.example.starring.auth.InputValidator;
+import com.example.starring.couple.CoupleLinkException;
 import com.google.firebase.FirebaseNetworkException;
 import com.google.firebase.FirebaseTooManyRequestsException;
 import com.google.firebase.auth.FirebaseAuthException;
 import com.google.firebase.firestore.FirebaseFirestoreException;
 
-/** Firebase 예외 → 사용자에게 보여줄 한국어 메시지. */
-public final class AuthErrorMapper {
+/** 예외(Firebase, 커플 연동 규칙 위반) → 사용자에게 보여줄 한국어 메시지. */
+public final class ErrorMessages {
 
-    private AuthErrorMapper() {
+    private ErrorMessages() {
     }
 
     public static String toMessage(Exception e) {
+        // 커플 연동 트랜잭션에서 던진 예외는 원인 체인 안에 감싸져 올 수 있음
+        CoupleLinkException link = CoupleLinkException.find(e);
+        if (link != null) {
+            return link.getUserMessage();
+        }
         if (e instanceof FirebaseNetworkException) {
             return "네트워크 연결을 확인해주세요.";
         }

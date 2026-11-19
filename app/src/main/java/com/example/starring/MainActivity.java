@@ -8,7 +8,7 @@ import android.widget.TextView;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.example.starring.auth.AuthErrorMapper;
+import com.example.starring.common.ErrorMessages;
 import com.example.starring.common.InsetsHelper;
 import com.example.starring.common.Navigator;
 import com.example.starring.data.FirestoreSchema;
@@ -127,7 +127,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void showError(Exception e) {
         progress.setVisibility(View.GONE);
-        textError.setText(AuthErrorMapper.toMessage(e));
+        textError.setText(ErrorMessages.toMessage(e));
         textError.setVisibility(View.VISIBLE);
         errorActions.setVisibility(View.VISIBLE);
     }

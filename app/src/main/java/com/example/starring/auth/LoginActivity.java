@@ -9,6 +9,7 @@ import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.starring.R;
+import com.example.starring.common.ErrorMessages;
 import com.example.starring.common.InsetsHelper;
 import com.example.starring.common.Navigator;
 import com.google.android.material.button.MaterialButton;
@@ -66,7 +67,7 @@ public class LoginActivity extends AppCompatActivity {
                         Navigator.toSplash(this);
                     } else {
                         setLoading(false);
-                        showError(AuthErrorMapper.toMessage(task.getException()));
+                        showError(ErrorMessages.toMessage(task.getException()));
                     }
                 });
     }

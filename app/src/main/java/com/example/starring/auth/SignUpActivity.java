@@ -10,6 +10,7 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.starring.R;
+import com.example.starring.common.ErrorMessages;
 import com.example.starring.common.InsetsHelper;
 import com.example.starring.common.Navigator;
 import com.example.starring.data.UserRepository;
@@ -89,7 +90,7 @@ public class SignUpActivity extends AppCompatActivity {
                 .addOnCompleteListener(this, task -> {
                     if (!task.isSuccessful() || task.getResult().getUser() == null) {
                         setLoading(false);
-                        showError(AuthErrorMapper.toMessage(task.getException()));
+                        showError(ErrorMessages.toMessage(task.getException()));
                         return;
                     }
                     saveProfile(task.getResult().getUser(), email, nickname);
