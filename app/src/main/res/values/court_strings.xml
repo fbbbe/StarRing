@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="court_title">우주 재판장</string>
+    <string name="court_galaxy_name">OO은하계</string>
+    <string name="court_tab_latest">최신순</string>
+    <string name="court_tab_deadline">마감임박순</string>
+    <string name="court_create_blackhole">+ 내 갈등 블랙홀 생성</string>
+    <string name="court_empty">아직 올라온 갈등이 없어요</string>
+
+    <string name="court_write_title">블랙홀 생성</string>
+    <string name="court_label_title">제목</string>
+    <string name="court_hint_title">갈등을 한 줄로 적어 주세요</string>
+    <string name="court_label_situation">갈등 상황</string>
+    <string name="court_hint_situation">어떤 일이 있었는지 적어 주세요</string>
+    <string name="court_label_my_position">나의 입장 (A)</string>
+    <string name="court_hint_my_position">내 생각을 적어 주세요</string>
+    <string name="court_label_other_position">상대의 입장 (B)</string>
+    <string name="court_hint_other_position">상대의 생각을 적어 주세요</string>
+    <string name="court_send">다른 은하계로 전송</string>
+    <string name="court_fill_all">모든 항목을 입력해 주세요</string>
+    <string name="court_created">블랙홀이 생성되어 재판장에 올라갔어요</string>
+
+    <string name="court_vote_title">투표</string>
+    <string name="court_position_a">A 입장</string>
+    <string name="court_position_b">B 입장</string>
+    <string name="court_anonymous_note">투표는 100% 익명으로 진행돼요</string>
+    <string name="court_vote_a">A 입장에 투표</string>
+    <string name="court_vote_b">B 입장에 투표</string>
+    <string name="court_result">투표 결과</string>
+    <string name="court_voted_a">A 입장에 투표했어요</string>
+    <string name="court_voted_b">B 입장에 투표했어요</string>
+</resources>

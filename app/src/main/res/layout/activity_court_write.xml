@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/court_bg"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <!-- 상단바: 뒤로가기 / 제목 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="8dp"
+        android:paddingEnd="16dp">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/court_write_title"
+            android:src="@drawable/ic_court_back" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_weight="1"
+            android:text="@string/court_write_title"
+            android:textColor="@color/court_text"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/court_label_title"
+                android:textColor="@color/court_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/editTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/court_input_bg"
+                android:hint="@string/court_hint_title"
+                android:inputType="text"
+                android:maxLength="30"
+                android:padding="14dp"
+                android:textColor="@color/court_text"
+                android:textColorHint="@color/court_text_sub"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/court_label_situation"
+                android:textColor="@color/court_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/editSituation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/court_input_bg"
+                android:gravity="top|start"
+                android:hint="@string/court_hint_situation"
+                android:inputType="textMultiLine"
+                android:minLines="4"
+                android:padding="14dp"
+                android:textColor="@color/court_text"
+                android:textColorHint="@color/court_text_sub"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/court_label_my_position"
+                android:textColor="@color/court_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/editMyPosition"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/court_input_bg"
+                android:gravity="top|start"
+                android:hint="@string/court_hint_my_position"
+                android:inputType="textMultiLine"
+                android:minLines="3"
+                android:padding="14dp"
+                android:textColor="@color/court_text"
+                android:textColorHint="@color/court_text_sub"
+                android:textSize="15sp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="@string/court_label_other_position"
+                android:textColor="@color/court_text"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <EditText
+                android:id="@+id/editOtherPosition"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:background="@drawable/court_input_bg"
+                android:gravity="top|start"
+                android:hint="@string/court_hint_other_position"
+                android:inputType="textMultiLine"
+                android:minLines="3"
+                android:padding="14dp"
+                android:textColor="@color/court_text"
+                android:textColorHint="@color/court_text_sub"
+                android:textSize="15sp" />
+
+            <TextView
+                android:id="@+id/btnSend"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="28dp"
+                android:background="@drawable/court_button_primary"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:text="@string/court_send"
+                android:textColor="@color/court_text"
+                android:textSize="17sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
