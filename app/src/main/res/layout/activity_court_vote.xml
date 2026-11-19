@@ -89,13 +89,28 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/court_position_a"
-                        android:textColor="@color/court_purple_light"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/court_position_a"
+                            android:textColor="@color/court_purple_light"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/angerB"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="💢"
+                            android:textSize="20sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/textPositionA"
@@ -116,13 +131,28 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="@string/court_position_b"
-                        android:textColor="@color/court_purple_light"
-                        android:textSize="14sp"
-                        android:textStyle="bold" />
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/court_position_a"
+                            android:textColor="@color/court_purple_light"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/angerA"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="💢"
+                            android:textSize="20sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:id="@+id/textPositionB"

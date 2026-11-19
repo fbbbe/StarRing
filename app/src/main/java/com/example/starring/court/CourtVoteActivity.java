@@ -9,6 +9,11 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.starring.R;
 
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
+import android.os.Handler;
+import android.os.Looper;
+
 /**
  * 우주 재판장 투표 화면
  * - 갈등 상황과 양쪽 입장을 보고 A / B 중 한쪽에 익명 투표
@@ -32,6 +37,18 @@ public class CourtVoteActivity extends AppCompatActivity {
     private TextView textPercentB;
     private TextView textMyVote;
 
+    private View angerA;
+    private View angerB;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable wiggleLoop = new Runnable() {
+        @Override
+        public void run() {
+            wiggle(angerA);
+            wiggle(angerB);
+            handler.postDelayed(this, 3000); // 3초마다 한 번
+        }
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -54,6 +71,8 @@ public class CourtVoteActivity extends AppCompatActivity {
         textPercentA = findViewById(R.id.textPercentA);
         textPercentB = findViewById(R.id.textPercentB);
         textMyVote = findViewById(R.id.textMyVote);
+        angerA = findViewById(R.id.angerA);
+        angerB = findViewById(R.id.angerB);
 
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -110,5 +129,30 @@ public class CourtVoteActivity extends AppCompatActivity {
             textMyVote.setText(post.myVote == CourtPost.VOTE_A
                     ? R.string.court_voted_a : R.string.court_voted_b);
         }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        handler.postDelayed(wiggleLoop, 800);
+    }
+
+    @Override
+    protected void onPause() {
+        handler.removeCallbacks(wiggleLoop);
+        super.onPause();
+    }
+
+    // 💢가 살짝 흔들리며 커졌다 작아짐
+    private void wiggle(View v) {
+        if (v == null) {
+            return;
+        }
+        ObjectAnimator animator = ObjectAnimator.ofPropertyValuesHolder(v,
+                PropertyValuesHolder.ofFloat(View.ROTATION, 0f, -14f, 14f, -10f, 10f, 0f),
+                PropertyValuesHolder.ofFloat(View.SCALE_X, 1f, 1.2f, 1f),
+                PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.2f, 1f));
+        animator.setDuration(600);
+        animator.start();
     }
 }
