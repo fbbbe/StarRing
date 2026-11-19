@@ -1,120 +1,134 @@
-
 package com.example.starring;
 
 import android.os.Bundle;
-import android.widget.Button;
-import android.widget.EditText;
+import android.view.View;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 
+import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.google.android.gms.tasks.Task;
-import com.google.firebase.auth.AuthResult;
+import com.example.starring.common.ErrorMessages;
+import com.example.starring.common.InsetsHelper;
+import com.example.starring.common.Navigator;
+import com.example.starring.data.FirestoreSchema;
+import com.example.starring.data.FirestoreSchema.GalaxyStatus;
+import com.example.starring.data.GalaxyRepository;
+import com.example.starring.data.UserRepository;
+import com.google.android.material.button.MaterialButton;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.Source;
+import com.google.firebase.firestore.DocumentSnapshot;
 
-import java.util.HashMap;
-import java.util.Map;
-
+/**
+ * Splash: 로그인 상태와 은하계 상태를 확인해서 알맞은 화면으로 보내는 역할만 한다.
+ *
+ * 로그인 안 됨                      → LoginActivity
+ * 로그인 됨 + 은하계 없음            → CoupleLinkActivity
+ * 로그인 됨 + 은하계 대기/이름설정 중 → CoupleLinkActivity (이어서 진행)
+ * 로그인 됨 + 은하계 해제/삭제됨      → 내 galaxyId 정리 후 CoupleLinkActivity
+ * 로그인 됨 + 은하계 active          → 메인 화면
+ */
 public class MainActivity extends AppCompatActivity {
 
-    private FirebaseAuth auth;
-    private FirebaseFirestore db;
+    private final UserRepository userRepository = new UserRepository();
+    private final GalaxyRepository galaxyRepository = new GalaxyRepository();
 
-    private EditText editEmail, editPassword;
-    private TextView textResult;
+    private ProgressBar progress;
+    private TextView textError;
+    private View errorActions;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_splash);
+        InsetsHelper.applySystemBarsAndIme(findViewById(R.id.content));
 
-        auth = FirebaseAuth.getInstance();
-        db = FirebaseFirestore.getInstance();
+        progress = findViewById(R.id.progress);
+        textError = findViewById(R.id.textError);
+        errorActions = findViewById(R.id.errorActions);
+        MaterialButton btnRetry = findViewById(R.id.btnRetry);
+        MaterialButton btnLogout = findViewById(R.id.btnLogout);
 
-        editEmail = findViewById(R.id.editEmail);
-        editPassword = findViewById(R.id.editPassword);
-        textResult = findViewById(R.id.textResult);
-
-        Button btnRegister = findViewById(R.id.btnRegister);
-        Button btnLogin = findViewById(R.id.btnLogin);
-        Button btnTest = findViewById(R.id.btnTest);
-
-        btnRegister.setOnClickListener(v -> authenticate(true));
-        btnLogin.setOnClickListener(v -> authenticate(false));
-        btnTest.setOnClickListener(v -> testFirestore());
-
-        if (auth.getCurrentUser() != null) {
-            textResult.setText("이미 로그인된 상태입니다.");
-        }
-    }
-
-    private void authenticate(boolean register) {
-
-        String email = editEmail.getText().toString().trim();
-        String password = editPassword.getText().toString();
-
-        if (email.isEmpty() || password.length() < 6) {
-            textResult.setText("이메일과 6자 이상 비밀번호를 입력하세요.");
-            return;
-        }
-
-        Task<AuthResult> task = register
-                ? auth.createUserWithEmailAndPassword(email, password)
-                : auth.signInWithEmailAndPassword(email, password);
-
-        task.addOnCompleteListener(this, result -> {
-            if (result.isSuccessful()) {
-                textResult.setText(register
-                        ? "회원가입 성공!"
-                        : "로그인 성공!");
-            } else {
-                textResult.setText("인증 실패: "
-                        + result.getException().getMessage());
-            }
+        btnRetry.setOnClickListener(v -> route());
+        btnLogout.setOnClickListener(v -> {
+            FirebaseAuth.getInstance().signOut();
+            Navigator.toLogin(this);
         });
+
+        route();
     }
 
-    private void testFirestore() {
+    private void route() {
+        showLoading();
 
-        FirebaseUser user = auth.getCurrentUser();
-
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) {
-            textResult.setText("먼저 로그인하세요.");
+            Navigator.toLogin(this);
             return;
         }
 
-        String uid = user.getUid();
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("message", "StarRing 연결 성공");
-        data.put("uid", uid);
-
-        db.collection("connection_tests")
-                .document(uid)
-                .set(data)
-                .addOnSuccessListener(unused -> {
-
-                    textResult.setText("저장 성공! 조회 중...");
-
-                    db.collection("connection_tests")
-                            .document(uid)
-                            .get(Source.SERVER)
-                            .addOnSuccessListener(document -> {
-                                String message = document.getString("message");
-                                textResult.setText(
-                                        "Firestore 연결 성공!\n" + message
-                                );
-                            })
-                            .addOnFailureListener(e ->
-                                    textResult.setText("조회 실패: " + e.getMessage())
-                            );
-
+        userRepository.getUser(user.getUid())
+                .addOnSuccessListener(this, userDoc -> {
+                    if (!userDoc.exists()) {
+                        recoverUserDocument(user);
+                        return;
+                    }
+                    String galaxyId = userDoc.getString(FirestoreSchema.USER_GALAXY_ID);
+                    if (galaxyId == null) {
+                        Navigator.toCoupleLink(this);
+                    } else {
+                        checkGalaxy(user.getUid(), galaxyId);
+                    }
                 })
-                .addOnFailureListener(e ->
-                        textResult.setText("저장 실패: " + e.getMessage())
-                );
+                .addOnFailureListener(this, this::showError);
+    }
+
+    /** 회원가입 때 users 문서 저장이 실패한 경우 복구. 닉네임은 Auth displayName에서 가져온다. */
+    private void recoverUserDocument(FirebaseUser user) {
+        String nickname = user.getDisplayName();
+        if (nickname == null || nickname.trim().isEmpty()) {
+            String email = user.getEmail() == null ? "" : user.getEmail();
+            nickname = email.contains("@") ? email.substring(0, email.indexOf('@')) : "별지기";
+        }
+        userRepository.createUser(user.getUid(), user.getEmail(), nickname)
+                .addOnSuccessListener(this, unused -> Navigator.toCoupleLink(this))
+                .addOnFailureListener(this, this::showError);
+    }
+
+    private void checkGalaxy(String uid, String galaxyId) {
+        galaxyRepository.getGalaxy(galaxyId)
+                .addOnSuccessListener(this, galaxyDoc -> {
+                    String status = galaxyDoc.exists()
+                            ? galaxyDoc.getString(FirestoreSchema.GALAXY_STATUS)
+                            : null;
+
+                    if (GalaxyStatus.ACTIVE.equals(status)) {
+                        Navigator.toMain(this);
+                    } else if (status == null || GalaxyStatus.UNLINKED.equals(status)) {
+                        // 상대가 연동을 해제했거나 은하계가 삭제됨 → 내 문서만 정리
+                        userRepository.clearGalaxyId(uid)
+                                .addOnSuccessListener(this, unused -> Navigator.toCoupleLink(this))
+                                .addOnFailureListener(this, this::showError);
+                    } else {
+                        // waiting / naming → 커플 연동 화면에서 이어서 진행
+                        Navigator.toCoupleLink(this);
+                    }
+                })
+                .addOnFailureListener(this, this::showError);
+    }
+
+    private void showLoading() {
+        progress.setVisibility(View.VISIBLE);
+        textError.setVisibility(View.GONE);
+        errorActions.setVisibility(View.GONE);
+    }
+
+    private void showError(Exception e) {
+        progress.setVisibility(View.GONE);
+        textError.setText(ErrorMessages.toMessage(e));
+        textError.setVisibility(View.VISIBLE);
+        errorActions.setVisibility(View.VISIBLE);
     }
 }
