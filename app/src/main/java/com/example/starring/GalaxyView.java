@@ -16,21 +16,40 @@ import java.util.Random;
 
 public class GalaxyView extends View {
 
-    // 별 데이터
-    private final ArrayList<Star> stars = new ArrayList<>();
+    private final ArrayList<Star> stars =
+            new ArrayList<>();
 
-    // 이미지 그리기
+    private final ArrayList<Constellation> constellations =
+            new ArrayList<>();
+
     private final Paint imagePaint = new Paint(
             Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG
     );
 
     private final RectF drawRect = new RectF();
 
-    // 별 PNG 이미지
     private final Bitmap babyBitmap;
     private final Bitmap bigBitmap;
 
-    // 화면 밀도
+    // 월별 별자리 PNG
+    private final Bitmap[] constellationBitmaps =
+            new Bitmap[12];
+
+    private static final int[] CONSTELLATION_RESOURCES = {
+            R.drawable.constellation_01,
+            R.drawable.constellation_02,
+            R.drawable.constellation_03,
+            R.drawable.constellation_04,
+            R.drawable.constellation_05,
+            R.drawable.constellation_06,
+            R.drawable.constellation_07,
+            R.drawable.constellation_08,
+            R.drawable.constellation_09,
+            R.drawable.constellation_10,
+            R.drawable.constellation_11,
+            R.drawable.constellation_12
+    };
+
     private final float density;
 
     // 카메라 설정
@@ -38,28 +57,21 @@ public class GalaxyView extends View {
     private float offsetX = 0f;
     private float offsetY = 0f;
 
-    // 터치 제어
+    private static final float MIN_ZOOM = 0.3f;
+    private static final float MAX_ZOOM = 4.0f;
+
+    // 터치
     private final ScaleGestureDetector scaleDetector;
     private float lastX;
     private float lastY;
     private boolean hadMultiTouch = false;
 
-    // 현재 생성된 별 개수
+    // 생성 상태
     private int currentDays = -1;
     private int currentMonths = -1;
+    private int currentConstellationMask = -1;
 
-    // 카메라 확대/축소 범위
-    private static final float MIN_ZOOM = 0.3f;
-    private static final float MAX_ZOOM = 4.0f;
-
-    // 별 배치를 위한 황금각
-    private static final double GOLDEN_ANGLE =
-            Math.PI * (3.0 - Math.sqrt(5.0));
-
-    // 은하계 공간의 기본 간격 (dp)
-    private static final float STAR_SPACING = 28f;
-
-    // 별 정보 클래스
+    // 애기별 및 큰 별
     private static class Star {
 
         final float x;
@@ -75,13 +87,42 @@ public class GalaxyView extends View {
         }
     }
 
+    // 12개 별자리의 고정 배치 정보
+    private final ArrayList<Constellation> constellationPositions =
+            new ArrayList<>();
+
+    // 별자리 이미지 사이의 최소 간격 (dp)
+    private static final float CONSTELLATION_MIN_GAP = 150f;
+
+    // 별자리 초기 생성 범위 (dp)
+    private static final float CONSTELLATION_RADIUS = 550f;
+
+
+
+    // 별자리
+    private static class Constellation {
+
+        final int month;
+        final float x;
+        final float y;
+        final float width;
+
+        Constellation(
+                int month, float x, float y, float width) {
+
+            this.month = month;
+            this.x = x;
+            this.y = y;
+            this.width = width;
+        }
+    }
+
     public GalaxyView(Context context) {
         super(context);
 
         density = getResources()
                 .getDisplayMetrics().density;
 
-        // PNG 이미지 불러오기
         babyBitmap = BitmapFactory.decodeResource(
                 getResources(),
                 R.drawable.star_baby
@@ -92,9 +133,25 @@ public class GalaxyView extends View {
                 R.drawable.star_big
         );
 
+        // 별자리 12종 이미지 불러오기
+        BitmapFactory.Options options =
+                new BitmapFactory.Options();
+
+        options.inSampleSize = 2;
+
+        for (int i = 0; i < 12; i++) {
+            constellationBitmaps[i] =
+                    BitmapFactory.decodeResource(
+                            getResources(),
+                            CONSTELLATION_RESOURCES[i],
+                            options
+                    );
+            createConstellationPositions();
+        }
+
+
         setClickable(true);
 
-        // 핀치 줌 감지
         scaleDetector = new ScaleGestureDetector(
                 context,
                 new ScaleGestureDetector
@@ -108,7 +165,6 @@ public class GalaxyView extends View {
 
                         zoom *= detector.getScaleFactor();
 
-                        // 최소/최대 줌 제한
                         zoom = Math.max(
                                 MIN_ZOOM,
                                 Math.min(zoom, MAX_ZOOM)
@@ -116,36 +172,33 @@ public class GalaxyView extends View {
 
                         float ratio = zoom / oldZoom;
 
-                        // 손가락 중심 위치
-                        float focusX = detector.getFocusX()
+                        float fx = detector.getFocusX()
                                 - getWidth() / 2f;
 
-                        float focusY = detector.getFocusY()
+                        float fy = detector.getFocusY()
                                 - getHeight() / 2f;
 
-                        // 손가락 중심을 기준으로 확대
-                        offsetX = focusX
-                                - (focusX - offsetX) * ratio;
+                        offsetX = fx
+                                - (fx - offsetX) * ratio;
 
-                        offsetY = focusY
-                                - (focusY - offsetY) * ratio;
+                        offsetY = fy
+                                - (fy - offsetY) * ratio;
 
                         limitCamera();
-
                         invalidate();
+
                         return true;
                     }
                 }
         );
     }
 
-    // 날짜에 따라 별 생성
+    // 애기별 및 큰 별 갱신
     public void setStarCounts(int days, int months) {
 
         days = Math.max(0, days);
         months = Math.max(0, months);
 
-        // 기존 개수와 같으면 재생성하지 않음
         if (currentDays == days
                 && currentMonths == months) {
             return;
@@ -156,12 +209,10 @@ public class GalaxyView extends View {
 
         stars.clear();
 
-        // 애기별: 하루에 하나
         for (int i = 1; i <= days; i++) {
             stars.add(createStar(i, false));
         }
 
-        // 큰 별: 한 달에 하나
         for (int i = 1; i <= months; i++) {
             stars.add(createStar(i, true));
         }
@@ -170,34 +221,28 @@ public class GalaxyView extends View {
         invalidate();
     }
 
-    // 별의 위치와 크기 생성
-
+    // 기존 불규칙한 별 배치 유지
     private Star createStar(int index, boolean big) {
 
-        // 별마다 고정된 랜덤 시드 사용
         long seed = 913701L
-                + index * 104729L
+                + (long) index * 104729L
                 + (big ? 500000L : 0L);
 
         Random random = new Random(seed);
 
-        // 큰 별은 경과 개월을 날짜 규모로 환산
         int order = big ? index * 30 : index;
 
-        // 별이 늘어나면 은하계 공간도 확장
         float maxRadius = 50f
                 + 28f * (float) Math.sqrt(order);
 
         float x;
         float y;
 
-        // 38%는 별이 모여 있는 구역에 생성
         boolean clustered =
                 order > 20 && random.nextFloat() < 0.38f;
 
         if (clustered) {
 
-            // 별이 모여 있는 네 개의 구역
             float[][] centers = {
                     {-170f, -140f},
                     {190f, -110f},
@@ -205,9 +250,9 @@ public class GalaxyView extends View {
                     {180f, 200f}
             };
 
-            int cluster = random.nextInt(centers.length);
+            int cluster =
+                    random.nextInt(centers.length);
 
-            // 중심 주변에 불규칙하게 흩어짐
             x = centers[cluster][0]
                     + (float) random.nextGaussian() * 90f;
 
@@ -216,18 +261,21 @@ public class GalaxyView extends View {
 
         } else {
 
-            // 나머지 별은 전체 공간에 무작위 생성
             double angle =
                     random.nextDouble() * Math.PI * 2;
 
             float distance = maxRadius
-                    * (float) Math.sqrt(random.nextDouble());
+                    * (float) Math.sqrt(
+                    random.nextDouble()
+            );
 
-            x = (float) (Math.cos(angle) * distance);
-            y = (float) (Math.sin(angle) * distance);
+            x = (float)
+                    (Math.cos(angle) * distance);
+
+            y = (float)
+                    (Math.sin(angle) * distance);
         }
 
-        // 별 크기도 랜덤
         float size;
 
         if (big) {
@@ -240,28 +288,161 @@ public class GalaxyView extends View {
     }
 
 
-    // 별 이미지 출력
-    @Override
-    protected void onDraw(Canvas canvas) {
-        super.onDraw(canvas);
+    public void setConstellationMask(int mask) {
+
+        if (currentConstellationMask == mask) {
+            return;
+        }
+
+        currentConstellationMask = mask;
+
+        constellations.clear();
+
+        // 미리 생성한 12개 위치 중
+        // 실제로 생성된 월의 별자리만 표시
+        for (Constellation constellation : constellationPositions) {
+
+            int bit = 1 << (constellation.month - 1);
+
+            if ((mask & bit) != 0) {
+                constellations.add(constellation);
+            }
+        }
+
+        limitCamera();
+        invalidate();
+    }
+
+
+    // 별자리 12개의 위치를 무작위로 생성
+    private void createConstellationPositions() {
+
+        constellationPositions.clear();
+
+        // 고정 시드를 사용하므로 앱 재실행 후에도
+        // 같은 월의 별자리는 같은 위치에 생성됨
+        Random random = new Random(20261119L);
+
+        for (int month = 1; month <= 12; month++) {
+
+            Bitmap bitmap = constellationBitmaps[month - 1];
+
+            if (bitmap == null) {
+                continue;
+            }
+
+            // 별자리 크기
+            float width = 95f + (month % 3) * 10f;
+
+            float height = width
+                    * bitmap.getHeight()
+                    / (float) bitmap.getWidth();
+
+            float radius = CONSTELLATION_RADIUS;
+
+            boolean placed = false;
+
+            // 배치 공간이 부족하면 범위를 확장
+            while (!placed) {
+
+                // 현재 범위에서 최대 300번 시도
+                for (int attempt = 0; attempt < 300; attempt++) {
+
+                    double angle =
+                            random.nextDouble() * Math.PI * 2;
+
+                    float distance = radius
+                            * (float) Math.sqrt(
+                            random.nextDouble()
+                    );
+
+                    float x = (float)
+                            (Math.cos(angle) * distance);
+
+                    float y = (float)
+                            (Math.sin(angle) * distance);
+
+                    // 기존 별자리와 최소 거리 검사
+                    if (isFarEnough(x, y, width, height)) {
+
+                        constellationPositions.add(
+                                new Constellation(
+                                        month, x, y, width
+                                )
+                        );
+
+                        placed = true;
+                        break;
+                    }
+                }
+
+                // 300번 시도해도 공간이 없으면 확장
+                if (!placed) {
+                    radius += 200f;
+                }
+            }
+        }
+    }
+
+
+    // 다른 별자리와 최소 거리 검사
+    private boolean isFarEnough(
+            float x, float y,
+            float width, float height) {
+
+        for (Constellation other : constellationPositions) {
+
+            Bitmap bitmap =
+                    constellationBitmaps[other.month - 1];
+
+            float otherWidth = other.width;
+
+            float otherHeight = otherWidth
+                    * bitmap.getHeight()
+                    / (float) bitmap.getWidth();
+
+            // 두 이미지 영역 사이의 X, Y 거리
+            float dx = Math.max(
+                    0f,
+                    Math.abs(x - other.x)
+                            - (width + otherWidth) / 2f
+            );
+
+            float dy = Math.max(
+                    0f,
+                    Math.abs(y - other.y)
+                            - (height + otherHeight) / 2f
+            );
+
+            // 이미지 영역 사이의 실제 최단 거리
+            double distance = Math.hypot(dx, dy);
+
+            if (distance < CONSTELLATION_MIN_GAP) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    // 애기별 및 큰 별 그리기
+    private void drawStars(Canvas canvas) {
 
         float centerX = getWidth() / 2f;
         float centerY = getHeight() / 2f;
 
         for (Star star : stars) {
 
-            // 은하계 좌표 → 화면 좌표
             float x = centerX + offsetX
                     + star.x * density * zoom;
 
             float y = centerY + offsetY
                     + star.y * density * zoom;
 
-            // 별 자체 크기에는 zoom을 적용하지 않음
+            // 별 크기는 줌의 영향 없음
             float size = star.size * density;
             float half = size / 2f;
 
-            // 화면 밖에 있는 별은 그리지 않음
             if (x + half < 0 ||
                     x - half > getWidth() ||
                     y + half < 0 ||
@@ -293,6 +474,73 @@ public class GalaxyView extends View {
         }
     }
 
+    // 별자리 이미지 그리기
+    private void drawConstellations(Canvas canvas) {
+
+        float centerX = getWidth() / 2f;
+        float centerY = getHeight() / 2f;
+
+        for (Constellation constellation : constellations) {
+
+            Bitmap bitmap = constellationBitmaps[
+                    constellation.month - 1
+                    ];
+
+            if (bitmap == null) {
+                continue;
+            }
+
+            // 별자리의 위치는 카메라 이동과 줌 적용
+            float x = centerX + offsetX
+                    + constellation.x * density * zoom;
+
+            float y = centerY + offsetY
+                    + constellation.y * density * zoom;
+
+            // 별자리는 줌에 따라 이미지 크기도 변화
+            float width =
+                    constellation.width * density * zoom;
+
+            // 원본 이미지 비율 유지
+            float height = width
+                    * bitmap.getHeight()
+                    / (float) bitmap.getWidth();
+
+            float halfW = width / 2f;
+            float halfH = height / 2f;
+
+            if (x + halfW < 0 ||
+                    x - halfW > getWidth() ||
+                    y + halfH < 0 ||
+                    y - halfH > getHeight()) {
+                continue;
+            }
+
+            drawRect.set(
+                    x - halfW,
+                    y - halfH,
+                    x + halfW,
+                    y + halfH
+            );
+
+            canvas.drawBitmap(
+                    bitmap,
+                    null,
+                    drawRect,
+                    imagePaint
+            );
+        }
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+
+        // 먼저 별을 그리고 그 위에 별자리 표시
+        drawStars(canvas);
+        drawConstellations(canvas);
+    }
+
     // 카메라 이동 범위 제한
     private void limitCamera() {
 
@@ -300,29 +548,52 @@ public class GalaxyView extends View {
             return;
         }
 
-        // 별의 분포 범위 계산
-        int babySlot = currentDays > 0
-                ? currentDays + (currentDays - 1) / 30
-                : 0;
+        int days = Math.max(0, currentDays);
+        int months = Math.max(0, currentMonths);
 
-        int bigSlot = Math.max(0, currentMonths) * 31;
+        int order = Math.max(days, months * 30);
 
-        int lastSlot = Math.max(babySlot, bigSlot);
+        float worldRadius = 50f
+                + 28f * (float) Math.sqrt(order);
 
-        float worldRadius = (
-                STAR_SPACING * (float) Math.sqrt(lastSlot)
-                        + 50f
-        ) * density * zoom;
 
-        // 별이 없는 영역으로 무한히 이동하지 않도록 제한
+// 실제 별자리 위치를 기준으로 이동 범위 확장
+        for (Constellation constellation : constellations) {
+
+            Bitmap bitmap =
+                    constellationBitmaps[constellation.month - 1];
+
+            if (bitmap == null) {
+                continue;
+            }
+
+            float height = constellation.width
+                    * bitmap.getHeight()
+                    / (float) bitmap.getWidth();
+
+            float extentX = Math.abs(constellation.x)
+                    + constellation.width / 2f;
+
+            float extentY = Math.abs(constellation.y)
+                    + height / 2f;
+
+            worldRadius = Math.max(
+                    worldRadius,
+                    Math.max(extentX, extentY) + 50f
+            );
+        }
+
+
+        float radiusPx = worldRadius * density * zoom;
+
         float maxX = Math.max(
                 100f * density,
-                worldRadius + getWidth() * 0.25f
+                radiusPx + getWidth() * 0.25f
         );
 
         float maxY = Math.max(
                 100f * density,
-                worldRadius + getHeight() * 0.25f
+                radiusPx + getHeight() * 0.25f
         );
 
         offsetX = Math.max(
@@ -336,7 +607,6 @@ public class GalaxyView extends View {
         );
     }
 
-    // 화면 크기 변경 시 카메라 범위 갱신
     @Override
     protected void onSizeChanged(
             int w, int h, int oldw, int oldh) {
@@ -354,14 +624,12 @@ public class GalaxyView extends View {
         switch (event.getActionMasked()) {
 
             case MotionEvent.ACTION_DOWN:
-
                 lastX = event.getX();
                 lastY = event.getY();
                 hadMultiTouch = false;
                 return true;
 
             case MotionEvent.ACTION_POINTER_DOWN:
-
                 hadMultiTouch = true;
                 return true;
 
@@ -398,7 +666,6 @@ public class GalaxyView extends View {
                 return true;
 
             case MotionEvent.ACTION_CANCEL:
-
                 hadMultiTouch = false;
                 return true;
         }
