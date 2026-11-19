@@ -8,14 +8,14 @@ import android.widget.TextView;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 
+import androidx.lifecycle.ViewModelProvider;
+
 import com.example.starring.R;
-import com.example.starring.common.ErrorMessages;
 import com.example.starring.common.InsetsHelper;
 import com.example.starring.common.Navigator;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.firebase.auth.FirebaseAuth;
 
 public class LoginActivity extends AppCompatActivity {
 
@@ -24,6 +24,8 @@ public class LoginActivity extends AppCompatActivity {
     private MaterialButton btnLogin, btnGoSignUp;
     private ProgressBar progress;
     private TextView textError;
+
+    private AuthViewModel viewModel;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -43,6 +45,29 @@ public class LoginActivity extends AppCompatActivity {
 
         btnLogin.setOnClickListener(v -> login());
         btnGoSignUp.setOnClickListener(v -> Navigator.toSignUp(this));
+
+        // 회전 후 다시 만들어져도 같은 ViewModel → 진행 중/완료 상태를 이어받는다
+        viewModel = new ViewModelProvider(this).get(AuthViewModel.class);
+        viewModel.state().observe(this, this::render);
+    }
+
+    private void render(AuthUiState state) {
+        switch (state.status) {
+            case LOADING:
+                setLoading(true);
+                break;
+            case SUCCESS:
+            case SUCCESS_NEEDS_RECOVERY:
+                // 은하계 유무에 따른 분기는 Splash(MainActivity)가 담당
+                Navigator.toSplash(this);
+                break;
+            case ERROR:
+                setLoading(false);
+                showError(state.message);
+                break;
+            default:
+                setLoading(false);
+        }
     }
 
     private void login() {
@@ -58,18 +83,7 @@ public class LoginActivity extends AppCompatActivity {
             return;
         }
 
-        setLoading(true);
-        FirebaseAuth.getInstance()
-                .signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this, task -> {
-                    if (task.isSuccessful()) {
-                        // 은하계 유무에 따른 분기는 Splash(MainActivity)가 담당
-                        Navigator.toSplash(this);
-                    } else {
-                        setLoading(false);
-                        showError(ErrorMessages.toMessage(task.getException()));
-                    }
-                });
+        viewModel.login(email, password);
     }
 
     private void setLoading(boolean loading) {

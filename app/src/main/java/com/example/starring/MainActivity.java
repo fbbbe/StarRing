@@ -8,6 +8,7 @@ import android.widget.TextView;
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.starring.auth.InputValidator;
 import com.example.starring.common.ErrorMessages;
 import com.example.starring.common.InsetsHelper;
 import com.example.starring.common.Navigator;
@@ -87,11 +88,8 @@ public class MainActivity extends AppCompatActivity {
 
     /** 회원가입 때 users 문서 저장이 실패한 경우 복구. 닉네임은 Auth displayName에서 가져온다. */
     private void recoverUserDocument(FirebaseUser user) {
-        String nickname = user.getDisplayName();
-        if (nickname == null || nickname.trim().isEmpty()) {
-            String email = user.getEmail() == null ? "" : user.getEmail();
-            nickname = email.contains("@") ? email.substring(0, email.indexOf('@')) : "별지기";
-        }
+        // 보안 규칙(닉네임 1~12자)을 통과하는 값만 만든다 — 길면 쓰기가 거부되어 Splash에 갇힘
+        String nickname = InputValidator.recoveryNickname(user.getDisplayName(), user.getEmail());
         userRepository.createUser(user.getUid(), user.getEmail(), nickname)
                 .addOnSuccessListener(this, unused -> Navigator.toCoupleLink(this))
                 .addOnFailureListener(this, this::showError);

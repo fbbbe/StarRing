@@ -15,7 +15,7 @@ public class CoupleLinkException extends FirebaseFirestoreException {
 
     public enum Reason {
         ALREADY_IN_GALAXY("이미 연결된 은하계가 있어요."),
-        INVALID_CODE("존재하지 않는 초대코드예요. 다시 확인해주세요."),
+        INVALID_CODE("존재하지 않거나 이미 사용된 초대코드예요. 다시 확인해주세요."),
         OWN_CODE("내가 만든 초대코드로는 합류할 수 없어요."),
         GALAXY_FULL("이미 두 사람이 연결된 은하계예요."),
         CODE_EXPIRED_OR_DENIED("만료되었거나 사용할 수 없는 초대코드예요. 상대에게 새 코드를 요청해주세요."),

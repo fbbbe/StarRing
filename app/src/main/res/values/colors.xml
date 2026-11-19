@@ -13,6 +13,5 @@
     <color name="text_primary">#FFEFEDFF</color>
     <color name="text_secondary">#FFA9A6CC</color>
     <color name="field_fill">#1FFFFFFF</color>
-    <color name="field_stroke">#FF55507E</color>
     <color name="error_soft">#FFFF8FA3</color>
 </resources>

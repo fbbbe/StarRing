@@ -9,17 +9,14 @@ import androidx.activity.EdgeToEdge;
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 
+import androidx.lifecycle.ViewModelProvider;
+
 import com.example.starring.R;
-import com.example.starring.common.ErrorMessages;
 import com.example.starring.common.InsetsHelper;
 import com.example.starring.common.Navigator;
-import com.example.starring.data.UserRepository;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.auth.FirebaseUser;
-import com.google.firebase.auth.UserProfileChangeRequest;
 
 public class SignUpActivity extends AppCompatActivity {
 
@@ -29,7 +26,7 @@ public class SignUpActivity extends AppCompatActivity {
     private ProgressBar progress;
     private TextView textError;
 
-    private final UserRepository userRepository = new UserRepository();
+    private AuthViewModel viewModel;
 
     /** 가입 처리 중에는 뒤로가기 막기 (중간 상태 방지). 로딩 중에만 enabled. */
     private final OnBackPressedCallback blockBackWhileLoading = new OnBackPressedCallback(false) {
@@ -62,6 +59,32 @@ public class SignUpActivity extends AppCompatActivity {
         btnSignUp.setOnClickListener(v -> signUp());
         btnBack.setOnClickListener(v -> finish());
         getOnBackPressedDispatcher().addCallback(this, blockBackWhileLoading);
+
+        // 회전 후 다시 만들어져도 같은 ViewModel → 진행 중/완료 상태를 이어받는다
+        viewModel = new ViewModelProvider(this).get(AuthViewModel.class);
+        viewModel.state().observe(this, this::render);
+    }
+
+    private void render(AuthUiState state) {
+        switch (state.status) {
+            case LOADING:
+                setLoading(true);
+                break;
+            case SUCCESS:
+                // 갓 가입한 사용자는 은하계가 없으므로 바로 커플 연동으로
+                Navigator.toCoupleLink(this);
+                break;
+            case SUCCESS_NEEDS_RECOVERY:
+                // 계정은 이미 만들어졌으므로 Splash에서 users 문서 복구 후 분기
+                Navigator.toSplash(this);
+                break;
+            case ERROR:
+                setLoading(false);
+                showError(state.message);
+                break;
+            default:
+                setLoading(false);
+        }
     }
 
     private void signUp() {
@@ -84,40 +107,7 @@ public class SignUpActivity extends AppCompatActivity {
             return;
         }
 
-        setLoading(true);
-        FirebaseAuth.getInstance()
-                .createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this, task -> {
-                    if (!task.isSuccessful() || task.getResult().getUser() == null) {
-                        setLoading(false);
-                        showError(ErrorMessages.toMessage(task.getException()));
-                        return;
-                    }
-                    saveProfile(task.getResult().getUser(), email, nickname);
-                });
-    }
-
-    /**
-     * Auth 프로필 displayName에도 닉네임을 넣어둔다.
-     * → users 문서 저장이 실패해도 Splash가 displayName으로 문서를 복구할 수 있다.
-     */
-    private void saveProfile(FirebaseUser user, String email, String nickname) {
-        UserProfileChangeRequest profile = new UserProfileChangeRequest.Builder()
-                .setDisplayName(nickname)
-                .build();
-
-        user.updateProfile(profile)
-                // displayName 실패 여부와 상관없이 users 문서 저장 진행
-                .continueWithTask(t -> userRepository.createUser(user.getUid(), email, nickname))
-                .addOnCompleteListener(this, t -> {
-                    if (t.isSuccessful()) {
-                        // 갓 가입한 사용자는 은하계가 없으므로 바로 커플 연동으로
-                        Navigator.toCoupleLink(this);
-                    } else {
-                        // 계정은 이미 만들어졌으므로 Splash에서 users 문서 복구 후 분기
-                        Navigator.toSplash(this);
-                    }
-                });
+        viewModel.signUp(email, password, nickname);
     }
 
     private void setLoading(boolean loading) {

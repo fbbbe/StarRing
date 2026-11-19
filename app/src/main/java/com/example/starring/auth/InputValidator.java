@@ -56,6 +56,23 @@ public final class InputValidator {
         return null;
     }
 
+    /**
+     * users 문서 복구용 닉네임. displayName → 이메일 앞부분 → "별지기" 순으로 쓰고,
+     * 항상 {@link #validateNickname}을 통과하도록 최대 길이로 자른다.
+     */
+    public static String recoveryNickname(String displayName, String email) {
+        String candidate = displayName == null ? "" : displayName.trim();
+        if (candidate.isEmpty() && email != null && email.indexOf('@') > 0) {
+            candidate = email.substring(0, email.indexOf('@')).trim();
+        }
+        if (candidate.isEmpty()) {
+            candidate = "별지기";
+        }
+        return candidate.length() > MAX_NICKNAME_LENGTH
+                ? candidate.substring(0, MAX_NICKNAME_LENGTH)
+                : candidate;
+    }
+
     public static String validateNickname(String nickname) {
         if (nickname == null || nickname.trim().isEmpty()) {
             return "닉네임을 입력해주세요.";

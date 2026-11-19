@@ -5,7 +5,6 @@ import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
-import android.text.InputFilter;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -75,6 +74,8 @@ public class CoupleLinkActivity extends AppCompatActivity {
 
     private String uid;
     private String galaxyId;
+    /** users/{uid} 실시간 감시 → galaxyId가 바뀌면(생성/합류/해제, 다른 기기 포함) 바로 반영 */
+    private ListenerRegistration userListener;
     private ListenerRegistration galaxyListener;
     /** 현재 화면에 표시 중인 초대코드 (코드가 바뀔 때만 유효기간을 다시 조회) */
     private String shownCode;
@@ -82,6 +83,8 @@ public class CoupleLinkActivity extends AppCompatActivity {
     private boolean busy;
     private boolean leaving;
     private boolean autoReissueTried;
+    /** 내가 취소/해제하는 중 → "상대가 해제했어요" 안내를 띄우지 않기 위함 */
+    private boolean selfLeaving;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,8 +103,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
         btnJoin = findViewById(R.id.btnJoin);
         layoutCode = findViewById(R.id.layoutCode);
         editCode = findViewById(R.id.editCode);
-        editCode.setFilters(new InputFilter[]{
-                new InputFilter.AllCaps(), new InputFilter.LengthFilter(InviteCode.LENGTH)});
+        editCode.setFilters(InviteCodeInputFilter.filters());
 
         textCode = findViewById(R.id.textCode);
         textCodeExpiry = findViewById(R.id.textCodeExpiry);
@@ -125,6 +127,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
         btnSaveName.setOnClickListener(v -> saveName());
         btnUnlinkNaming.setOnClickListener(v -> confirmUnlinkWhileNaming());
         findViewById(R.id.btnLogout).setOnClickListener(v -> {
+            stopUserListener();
             stopWatching();
             FirebaseAuth.getInstance().signOut();
             Navigator.toLogin(this);
@@ -140,36 +143,59 @@ public class CoupleLinkActivity extends AppCompatActivity {
             return;
         }
         uid = user.getUid();
-        loadUser();
+        startUserListener();
     }
 
     @Override
     protected void onStop() {
         super.onStop();
+        stopUserListener();
         stopWatching();
     }
 
     // ───────────────────────── 상태 로딩 / 감시 ─────────────────────────
 
-    private void loadUser() {
+    /**
+     * 한 번 읽기(get) 대신 실시간 감시를 쓰는 이유:
+     * 은하계 생성/합류 도중 화면이 회전돼 Activity가 다시 만들어져도,
+     * 트랜잭션이 끝나 galaxyId가 기록되는 순간 새 Activity가 그 변화를 받는다.
+     */
+    private void startUserListener() {
+        stopUserListener();
         show(Panel.LOADING);
-        userRepository.getUser(uid)
-                .addOnSuccessListener(this, doc -> {
-                    String gid = doc.getString(FirestoreSchema.USER_GALAXY_ID);
-                    if (gid == null) {
-                        galaxyId = null;
-                        show(Panel.CHOOSE);
-                    } else {
-                        watch(gid);
-                    }
-                })
-                .addOnFailureListener(this, e -> {
-                    show(Panel.CHOOSE);
-                    showError(ErrorMessages.toMessage(e));
-                });
+        userListener = userRepository.userRef(uid).addSnapshotListener((doc, e) -> {
+            if (leaving) {
+                return;
+            }
+            if (e != null) {
+                show(Panel.CHOOSE);
+                showError(ErrorMessages.toMessage(e));
+                return;
+            }
+            String gid = doc == null ? null : doc.getString(FirestoreSchema.USER_GALAXY_ID);
+            if (gid == null) {
+                stopWatching();
+                galaxyId = null;
+                shownCode = null;
+                partnerUidShown = null;
+                show(Panel.CHOOSE);
+            } else {
+                watch(gid);
+            }
+        });
+    }
+
+    private void stopUserListener() {
+        if (userListener != null) {
+            userListener.remove();
+            userListener = null;
+        }
     }
 
     private void watch(String gid) {
+        if (gid.equals(galaxyId) && galaxyListener != null) {
+            return; // 이미 감시 중
+        }
         stopWatching();
         galaxyId = gid;
         galaxyListener = galaxyRepository.watchGalaxy(gid, (snap, e) -> {
@@ -215,7 +241,9 @@ public class CoupleLinkActivity extends AppCompatActivity {
             stopWatching();
             galaxyId = null;
             userRepository.clearGalaxyId(uid);
-            Toast.makeText(this, R.string.unlink_by_partner, Toast.LENGTH_LONG).show();
+            if (!selfLeaving) {
+                Toast.makeText(this, R.string.unlink_by_partner, Toast.LENGTH_LONG).show();
+            }
             show(Panel.CHOOSE);
         }
     }
@@ -364,15 +392,18 @@ public class CoupleLinkActivity extends AppCompatActivity {
         clearError();
         setBusy(true);
         String gid = galaxyId;
+        selfLeaving = true;
         stopWatching(); // 삭제 이벤트를 리스너가 따로 처리하지 않도록
         galaxyRepository.cancelWaiting(uid, gid)
                 .addOnSuccessListener(this, unused -> {
+                    selfLeaving = false;
                     setBusy(false);
                     galaxyId = null;
                     shownCode = null;
                     show(Panel.CHOOSE);
                 })
                 .addOnFailureListener(this, e -> {
+                    selfLeaving = false;
                     setBusy(false);
                     showError(ErrorMessages.toMessage(e));
                     watch(gid); // 상대가 이미 합류했으면 리스너가 이름 설정 화면으로 보냄
@@ -437,15 +468,18 @@ public class CoupleLinkActivity extends AppCompatActivity {
         clearError();
         setBusy(true);
         String gid = galaxyId;
+        selfLeaving = true;
         stopWatching(); // 내가 해제한 걸 "상대가 해제"로 표시하지 않도록
         galaxyRepository.unlink(uid, gid)
                 .addOnSuccessListener(this, unused -> {
+                    selfLeaving = false;
                     setBusy(false);
                     galaxyId = null;
                     partnerUidShown = null;
                     show(Panel.CHOOSE);
                 })
                 .addOnFailureListener(this, e -> {
+                    selfLeaving = false;
                     setBusy(false);
                     showError(ErrorMessages.toMessage(e));
                     watch(gid);
