@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -28,14 +27,21 @@
 
         </activity>
 
-        <activity android:name=".court.CourtMainActivity" android:exported="true" />
-        <activity android:name=".court.CourtWriteActivity" android:exported="false" />
-        <activity android:name=".court.CourtVoteActivity" android:exported="false" />
-
-        <!-- 팀원 은하계 메인 화면. Splash를 거쳐 진입 (bornAt 연동 후 Navigator.toMain에 연결 예정) -->
+        <!-- 우주 재판장 메인 -->
         <activity
-            android:name=".GalaxyActivity"
+            android:name=".court.CourtMainActivity"
             android:exported="false" />
+
+        <!-- 블랙홀 생성 -->
+        <activity
+            android:name=".court.CourtWriteActivity"
+            android:exported="false" />
+
+        <!-- 우주 재판장 투표 -->
+        <activity
+            android:name=".court.CourtVoteActivity"
+            android:exported="false" />
+
         <!-- 로그인 -->
         <activity
             android:name=".auth.LoginActivity"
@@ -62,16 +68,6 @@
         <!-- 행성 생성 -->
         <activity
             android:name=".PlanetCreateActivity"
-            android:exported="false" />
-
-        <!-- 우주 재판장 -->
-        <activity
-            android:name=".CourtMainActivity"
-            android:exported="false" />
-
-        <!-- 블랙홀 생성 -->
-        <activity
-            android:name=".CourtWriteActivity"
             android:exported="false" />
 
     </application>
