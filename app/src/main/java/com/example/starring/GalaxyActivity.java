@@ -16,13 +16,13 @@ public class GalaxyActivity extends Activity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    // 실제 연애 시작일 (현재 테스트용)
+    // 연애 시작일 (테스트용)
     private static final int START_YEAR = 2026;
     private static final int START_MONTH = 11;
     private static final int START_DAY = 19;
 
-    // 테스트용: 실제 날짜에 며칠을 더할지
-    private static final int TEST_ADD_DAYS = 100;
+    // 날짜 테스트용
+    private static final int TEST_ADD_DAYS =360;
 
     private final Runnable dateChecker = new Runnable() {
         @Override
@@ -66,7 +66,7 @@ public class GalaxyActivity extends Activity {
         super.onPause();
     }
 
-    // 날짜만 비교하기 위한 UTC 달력
+    // 날짜 계산용 Calendar 생성
     private Calendar makeDate(
             int year, int month, int day) {
 
@@ -80,7 +80,45 @@ public class GalaxyActivity extends Activity {
         return date;
     }
 
-    // 별 개수 갱신
+    // 매월 1일에 생성할 별자리 계산
+    private int calculateConstellationMask(
+            Calendar start, Calendar today) {
+
+        if (today.before(start)) {
+            return 0;
+        }
+
+        // 연애 시작일이 속한 달의 1일
+        Calendar first = (Calendar) start.clone();
+        first.set(Calendar.DAY_OF_MONTH, 1);
+
+        // 연애 시작 전의 별자리는 생성하지 않음
+        if (first.before(start)) {
+            first.add(Calendar.MONTH, 1);
+        }
+
+        int mask = 0;
+
+        while (!first.after(today)) {
+
+            // Calendar.MONTH는 0~11
+            int monthIndex = first.get(Calendar.MONTH);
+
+            // 해당 월의 비트가 이미 1이면 중복 생성 안 함
+            mask |= (1 << monthIndex);
+
+            // 12종 모두 생성되면 종료
+            if (mask == 0xFFF) {
+                break;
+            }
+
+            first.add(Calendar.MONTH, 1);
+        }
+
+        return mask;
+    }
+
+    // 은하계 갱신
     private void updateGalaxy() {
 
         Calendar localNow = Calendar.getInstance();
@@ -91,7 +129,7 @@ public class GalaxyActivity extends Activity {
                 localNow.get(Calendar.DAY_OF_MONTH)
         );
 
-        // 개발 중 테스트 날짜 이동
+        // 테스트용 날짜 이동
         today.add(
                 Calendar.DAY_OF_MONTH,
                 TEST_ADD_DAYS
@@ -134,7 +172,13 @@ public class GalaxyActivity extends Activity {
             }
         }
 
-        // 은하계 화면 갱신
+        // 애기별 및 큰 별 갱신
         galaxyView.setStarCounts(days, months);
+
+        // 별자리 생성 여부 갱신
+        int constellationMask =
+                calculateConstellationMask(start, today);
+
+        galaxyView.setConstellationMask(constellationMask);
     }
 }
