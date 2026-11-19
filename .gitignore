@@ -28,3 +28,6 @@ secrets.properties
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Personal work log (not committed)
+/work-log.md
