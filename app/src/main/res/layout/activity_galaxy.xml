@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#100D24">
+
+    <!-- 고정된 우주 배경 PNG -->
+    <ImageView
+        android:id="@+id/galaxyBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/bg_galaxy"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null" />
+
+    <!-- 별들이 생성되는 은하계 공간 -->
+    <FrameLayout
+        android:id="@+id/galaxyContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+</FrameLayout>
