@@ -1,9 +1,37 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Base.Theme.StarRing" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+    <!-- 우주 컨셉: 시스템 다크/라이트 설정과 상관없이 항상 어두운 테마 -->
+    <style name="Base.Theme.StarRing" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/nebula_violet</item>
+        <item name="colorOnPrimary">@color/on_nebula</item>
+        <item name="colorSecondary">@color/star_gold</item>
+        <item name="colorError">@color/error_soft</item>
+        <item name="android:windowBackground">@drawable/bg_space</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 
     <style name="Theme.StarRing" parent="Base.Theme.StarRing" />
+
+    <!-- 입력칸 공통 스타일 -->
+    <style name="Widget.StarRing.TextField" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/field_fill</item>
+        <item name="boxStrokeColor">@color/nebula_violet</item>
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="android:layout_marginTop">12dp</item>
+    </style>
+
+    <style name="Widget.StarRing.Button" parent="Widget.Material3.Button">
+        <item name="android:minHeight">56dp</item>
+        <item name="cornerRadius">28dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TextAppearance.StarRing.Title" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="android:textColor">@color/star_gold</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.08</item>
+    </style>
 </resources>

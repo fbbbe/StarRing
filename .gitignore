@@ -25,3 +25,9 @@ secrets.properties
 *.pem
 *.p12
 *serviceAccountKey*.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Personal work log (not committed)
+/work-log.md
