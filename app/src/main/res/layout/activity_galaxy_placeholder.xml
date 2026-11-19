@@ -24,16 +24,6 @@
             android:textSize="28sp"
             android:textStyle="bold" />
 
-        <!-- TEMP: 별자리 이미지 로드 확인용. 확인 후 삭제 -->
-        <ImageView
-            android:id="@+id/tempConstellation"
-            android:layout_width="240dp"
-            android:layout_height="240dp"
-            android:layout_marginTop="24dp"
-            android:contentDescription="@null"
-            android:scaleType="fitCenter"
-            android:src="@drawable/constellation_01" />
-
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnUnlink"
             style="@style/Widget.Material3.Button.TextButton"
