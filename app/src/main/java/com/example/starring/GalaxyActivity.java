@@ -180,5 +180,7 @@ public class GalaxyActivity extends Activity {
                 calculateConstellationMask(start, today);
 
         galaxyView.setConstellationMask(constellationMask);
+        // 행성 6개 테스트 생성
+        galaxyView.setPlanetCount(6);
     }
 }
