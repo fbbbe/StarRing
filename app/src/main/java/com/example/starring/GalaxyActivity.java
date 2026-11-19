@@ -20,6 +20,8 @@ import android.widget.Toast;
 
 import java.util.Calendar;
 import java.util.TimeZone;
+import com.example.starring.court.CourtMainActivity;
+import com.example.starring.court.CourtWriteActivity;
 
 public class GalaxyActivity extends Activity {
 
