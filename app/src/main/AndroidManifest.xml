@@ -21,6 +21,11 @@
             </intent-filter>
 
         </activity>
+
+        <activity android:name=".court.CourtMainActivity" android:exported="true" />
+        <activity android:name=".court.CourtWriteActivity" android:exported="false" />
+        <activity android:name=".court.CourtVoteActivity" android:exported="false" />
+
     </application>
 
 </manifest>

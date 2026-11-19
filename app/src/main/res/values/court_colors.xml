@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="court_bg">#100D24</color>
+    <color name="court_surface">#1E1838</color>
+    <color name="court_stroke">#3B3266</color>
+    <color name="court_purple">#6C4FD6</color>
+    <color name="court_purple_light">#B7A9EE</color>
+    <color name="court_text">#F2EFFF</color>
+    <color name="court_text_sub">#A79FC9</color>
+</resources>
