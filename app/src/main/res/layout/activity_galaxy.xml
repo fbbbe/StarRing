@@ -5,19 +5,77 @@
     android:layout_height="match_parent"
     android:background="#100D24">
 
-    <!-- 고정된 우주 배경 PNG -->
+    <!-- 우주 배경 PNG -->
     <ImageView
         android:id="@+id/galaxyBackground"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:src="@drawable/bg_galaxy"
         android:scaleType="centerCrop"
-        android:contentDescription="@null" />
+        android:contentDescription="@null"/>
 
-    <!-- 별들이 생성되는 은하계 공간 -->
+    <!-- 기존 은하계 화면 -->
     <FrameLayout
         android:id="@+id/galaxyContainer"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"/>
+
+    <!-- 태양계 메뉴가 열리면 어두워지는 영역 -->
+    <View
+        android:id="@+id/solarDimOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#B3000616"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"/>
+
+    <!-- 태양계 메뉴 패널 -->
+    <LinearLayout
+        android:id="@+id/solarMenuPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="18dp"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="116dp"
+        android:padding="16dp"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:background="@drawable/bg_solar_menu_panel"
+        android:visibility="gone"
+        android:clickable="true">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp"
+            android:text="태양계"
+            android:textColor="#F4E8FF"
+            android:textSize="18sp"
+            android:textStyle="bold"
+            android:gravity="center"/>
+
+        <!-- PNG 메뉴 버튼이 생성되는 위치 -->
+        <LinearLayout
+            android:id="@+id/solarMenuGrid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"/>
+
+    </LinearLayout>
+
+    <!-- 하단 중앙 고정 태양 PNG -->
+    <ImageView
+        android:id="@+id/btnSun"
+        android:layout_width="84dp"
+        android:layout_height="84dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="20dp"
+        android:src="@drawable/solar_sun"
+        android:scaleType="fitCenter"
+        android:contentDescription="태양계 메뉴 열기"
+        android:clickable="true"
+        android:focusable="true"/>
 
 </FrameLayout>
