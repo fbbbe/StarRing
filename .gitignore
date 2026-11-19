@@ -31,3 +31,6 @@ secrets.properties
 
 # Personal work log (not committed)
 /work-log.md
+
+# IDE settings (Android Studio)
+.idea/
