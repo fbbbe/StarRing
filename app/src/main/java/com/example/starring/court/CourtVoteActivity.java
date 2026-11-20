@@ -1,6 +1,10 @@
 package com.example.starring.court;
 
+import android.animation.ObjectAnimator;
+import android.animation.PropertyValuesHolder;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -8,11 +12,6 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.starring.R;
-
-import android.animation.ObjectAnimator;
-import android.animation.PropertyValuesHolder;
-import android.os.Handler;
-import android.os.Looper;
 
 /**
  * 우주 재판장 투표 화면
@@ -39,7 +38,25 @@ public class CourtVoteActivity extends AppCompatActivity {
 
     private View angerA;
     private View angerB;
+    private int remainingNormalColor;
+    private boolean lastExpired;
     private final Handler handler = new Handler(Looper.getMainLooper());
+
+    // 1초마다 남은 시간 갱신 (목록 화면과 같은 표시 함수 사용)
+    private final Runnable ticker = new Runnable() {
+        @Override
+        public void run() {
+            CourtPost post = CourtRepository.findById(postId);
+            if (post != null) {
+                CourtPostAdapter.bindRemaining(textRemaining, post, remainingNormalColor);
+                // 보고 있는 도중 마감되면 화면 전환
+                if (post.isExpired() != lastExpired) {
+                    render();
+                }
+            }
+            handler.postDelayed(this, 1000);
+        }
+    };
     private final Runnable wiggleLoop = new Runnable() {
         @Override
         public void run() {
@@ -65,6 +82,7 @@ public class CourtVoteActivity extends AppCompatActivity {
         textPositionA = findViewById(R.id.textPositionA);
         textPositionB = findViewById(R.id.textPositionB);
         textRemaining = findViewById(R.id.textRemaining);
+        remainingNormalColor = textRemaining.getCurrentTextColor();
         layoutVoteButtons = findViewById(R.id.layoutVoteButtons);
         layoutResult = findViewById(R.id.layoutResult);
         barResult = findViewById(R.id.barResult);
@@ -99,6 +117,11 @@ public class CourtVoteActivity extends AppCompatActivity {
     }
 
     private void vote(int choice) {
+        CourtPost post = CourtRepository.findById(postId);
+        if (post == null || post.isExpired() || post.myVote != CourtPost.VOTE_NONE) {
+            render(); // 마감됐거나 이미 투표함 -> 투표 불가
+            return;
+        }
         CourtRepository.vote(postId, choice);
         render();
     }
@@ -114,20 +137,27 @@ public class CourtVoteActivity extends AppCompatActivity {
         textSituation.setText(post.situation);
         textPositionA.setText(post.positionA);
         textPositionB.setText(post.positionB);
-        textRemaining.setText(post.remainingText());
+        CourtPostAdapter.bindRemaining(textRemaining, post, remainingNormalColor);
 
         boolean voted = post.myVote != CourtPost.VOTE_NONE;
+        boolean expired = post.isExpired();
+        lastExpired = expired;
 
-        // 투표 전: 버튼만 / 투표 후: 결과만
-        layoutVoteButtons.setVisibility(voted ? View.GONE : View.VISIBLE);
-        layoutResult.setVisibility(voted ? View.VISIBLE : View.GONE);
+        // 투표 전(마감 전): 버튼만 / 투표했거나 마감됨: 결과만
+        boolean showResult = voted || expired;
+        layoutVoteButtons.setVisibility(showResult ? View.GONE : View.VISIBLE);
+        layoutResult.setVisibility(showResult ? View.VISIBLE : View.GONE);
 
-        if (voted) {
+        if (showResult) {
             barResult.setProgress(post.percentA());
             textPercentA.setText("A " + post.percentA() + "%");
             textPercentB.setText("B " + post.percentB() + "%");
-            textMyVote.setText(post.myVote == CourtPost.VOTE_A
-                    ? R.string.court_voted_a : R.string.court_voted_b);
+            if (voted) {
+                textMyVote.setText(post.myVote == CourtPost.VOTE_A
+                        ? R.string.court_voted_a : R.string.court_voted_b);
+            } else {
+                textMyVote.setText("투표가 마감되었어요");
+            }
         }
     }
 
@@ -135,11 +165,14 @@ public class CourtVoteActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         handler.postDelayed(wiggleLoop, 800);
+        handler.removeCallbacks(ticker);
+        handler.post(ticker);
     }
 
     @Override
     protected void onPause() {
         handler.removeCallbacks(wiggleLoop);
+        handler.removeCallbacks(ticker);
         super.onPause();
     }
 

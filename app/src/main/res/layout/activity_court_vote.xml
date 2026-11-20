@@ -67,24 +67,41 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:textColor="@color/court_text_sub"
-                    android:textSize="13sp" />
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/textSituation"
+                <!-- 갈등 상황 -->
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="16dp"
-                    android:background="@drawable/court_card_bg"
-                    android:lineSpacingExtra="4dp"
-                    android:padding="16dp"
-                    android:textColor="@color/court_text"
-                    android:textSize="15sp" />
+                    android:background="@drawable/court_situation_bg"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/court_label_situation"
+                        android:textColor="@color/court_purple_light"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/textSituation"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:lineSpacingExtra="4dp"
+                        android:textColor="@color/court_text"
+                        android:textSize="15sp" />
+                </LinearLayout>
 
                 <!-- A 입장 -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
+                    android:layout_marginTop="32dp"
                     android:background="@drawable/court_card_bg"
                     android:orientation="vertical"
                     android:padding="16dp">
@@ -105,7 +122,7 @@
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/angerB"
+                            android:id="@+id/angerA"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="💢"
@@ -141,13 +158,13 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="@string/court_position_a"
+                            android:text="@string/court_position_b"
                             android:textColor="@color/court_purple_light"
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
                         <TextView
-                            android:id="@+id/angerA"
+                            android:id="@+id/angerB"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="💢"

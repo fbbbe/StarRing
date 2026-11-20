@@ -2,6 +2,8 @@ package com.example.starring.court;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.widget.TextView;
 
@@ -10,7 +12,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.starring.R;
-
 
 import java.util.List;
 
@@ -27,6 +28,16 @@ public class CourtMainActivity extends AppCompatActivity {
     private TextView tabDeadline;
     private TextView textEmpty;
     private boolean latestFirst = true;
+
+    // 1초마다 남은 시간 갱신
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private final Runnable ticker = new Runnable() {
+        @Override
+        public void run() {
+            adapter.tick();
+            handler.postDelayed(this, 1000);
+        }
+    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,6 +96,14 @@ public class CourtMainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         refresh();
+        handler.removeCallbacks(ticker);
+        handler.postDelayed(ticker, 1000);
+    }
+
+    @Override
+    protected void onPause() {
+        handler.removeCallbacks(ticker);
+        super.onPause();
     }
 
     private void selectTab(boolean latest) {

@@ -60,14 +60,35 @@ public class CourtPost {
         return 100 - percentA();
     }
 
-    // "남은 시간 3시간 20분" 형태
+    public long remainingMillis() {
+        return deadlineAt - System.currentTimeMillis();
+    }
+
+    public boolean isExpired() {
+        return remainingMillis() <= 0;
+    }
+
+    // 마감 1시간 미만 -> 긴박 모드(붉은 깜빡임)
+    public boolean isUrgent() {
+        long left = remainingMillis();
+        return left > 0 && left < 3600000L;
+    }
+
+    // "05:00:00" 형태 (시간은 99를 넘어도 그대로 표시)
+    public String remainingClock() {
+        long left = Math.max(0, remainingMillis());
+        long totalSec = left / 1000L;
+        long h = totalSec / 3600;
+        long m = (totalSec / 60) % 60;
+        long s = totalSec % 60;
+        return String.format(java.util.Locale.US, "%02d:%02d:%02d", h, m, s);
+    }
+
+    // 목록/투표 화면 공용 문구
     public String remainingText() {
-        long left = deadlineAt - System.currentTimeMillis();
-        if (left <= 0) {
+        if (isExpired()) {
             return "마감됨";
         }
-        long hours = left / 3600000L;
-        long minutes = (left / 60000L) % 60;
-        return "남은 시간 " + hours + "시간 " + minutes + "분";
+        return "남은 시간 " + remainingClock();
     }
 }

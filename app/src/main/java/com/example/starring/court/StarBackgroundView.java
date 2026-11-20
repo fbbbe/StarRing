@@ -7,6 +7,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.RadialGradient;
 import android.graphics.Shader;
+import android.os.SystemClock;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.animation.LinearInterpolator;
@@ -33,6 +34,15 @@ public class StarBackgroundView extends View {
     private final float[] starRadiusDp = new float[STAR_COUNT];
     private final float[] starPhase = new float[STAR_COUNT];
     private final int[] starBlinks = new int[STAR_COUNT]; // 한 주기 동안 깜빡이는 횟수
+
+    // 별똥별 (가끔 한 번씩 작게 지나감)
+    private static final long METEOR_DURATION_MS = 1800L;
+    private final Random meteorRandom = new Random();
+    private final Paint meteorPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private long meteorStartAt;      // 현재 별똥별 시작 시각 (uptime)
+    private long nextMeteorAt;       // 다음 별똥별 시작 예정 시각
+    private boolean meteorActive;
+    private float mx, my, mdx, mdy, mTravel, mTail;
 
     private float density;
     private float progress; // 0~1 반복
@@ -66,6 +76,11 @@ public class StarBackgroundView extends View {
             starBlinks[i] = 1 + random.nextInt(3); // 1~3 (정수여야 반복이 끊기지 않음)
         }
         starPaint.setColor(0xFFFFFFFF);
+
+        meteorPaint.setColor(0xFFFFFFFF);
+        meteorPaint.setStrokeCap(Paint.Cap.ROUND);
+        meteorPaint.setStrokeWidth(1.3f * density);
+        nextMeteorAt = SystemClock.uptimeMillis() + 2500L;
     }
 
     @Override
@@ -101,6 +116,53 @@ public class StarBackgroundView extends View {
             starPaint.setAlpha((int) (255 * (0.25f + 0.75f * wave)));
             canvas.drawCircle(starX[i] * w, starY[i] * h, starRadiusDp[i] * density, starPaint);
         }
+
+        drawMeteor(canvas, w, h);
+    }
+
+    private void drawMeteor(Canvas canvas, int w, int h) {
+        long now = SystemClock.uptimeMillis();
+
+        if (!meteorActive) {
+            if (now < nextMeteorAt) {
+                return;
+            }
+            // 새 별똥별 시작: 오른쪽 위에서 왼쪽 아래로 비스듬히
+            meteorActive = true;
+            meteorStartAt = now;
+            mx = w * (0.35f + meteorRandom.nextFloat() * 0.65f);
+            my = h * (0.02f + meteorRandom.nextFloat() * 0.35f);
+            double angle = Math.toRadians(25 + meteorRandom.nextInt(20)); // 수평 기준 25~45도
+            mdx = (float) -Math.cos(angle);
+            mdy = (float) Math.sin(angle);
+            mTravel = w * (0.35f + meteorRandom.nextFloat() * 0.25f);
+            mTail = (100 + meteorRandom.nextInt(50)) * density; // 꼬리 100~150dp
+        }
+
+        float t = (now - meteorStartAt) / (float) METEOR_DURATION_MS;
+        if (t >= 1f) {
+            meteorActive = false;
+            nextMeteorAt = now + 2000L; // 2초 뒤 다시
+            return;
+        }
+
+        float envelope = (float) Math.sin(Math.PI * t); // 나타났다 사라짐
+        float hx = mx + mdx * mTravel * t;
+        float hy = my + mdy * mTravel * t;
+
+        int segments = 12;
+        for (int i = 0; i < segments; i++) {
+            float f0 = i / (float) segments;
+            float f1 = (i + 1) / (float) segments;
+            float alpha = (1f - f0) * 0.9f * envelope;
+            meteorPaint.setAlpha((int) (255 * alpha));
+            canvas.drawLine(
+                    hx - mdx * mTail * f0, hy - mdy * mTail * f0,
+                    hx - mdx * mTail * f1, hy - mdy * mTail * f1,
+                    meteorPaint);
+        }
+        meteorPaint.setAlpha((int) (255 * envelope));
+        canvas.drawCircle(hx, hy, 1.4f * density, meteorPaint);
     }
 
     // 화면에 보일 때만 애니메이션 동작 (배터리 절약)
