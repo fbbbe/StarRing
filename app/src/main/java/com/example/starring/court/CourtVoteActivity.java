@@ -13,6 +13,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.starring.R;
 
+import android.graphics.drawable.GradientDrawable;
+
 /**
  * 우주 재판장 투표 화면
  * - 갈등 상황과 양쪽 입장을 보고 A / B 중 한쪽에 익명 투표
@@ -38,6 +40,9 @@ public class CourtVoteActivity extends AppCompatActivity {
 
     private View angerA;
     private View angerB;
+    private View cardA;
+    private View cardB;
+    private TextView textVoteToast;
     private int remainingNormalColor;
     private boolean lastExpired;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -70,6 +75,7 @@ public class CourtVoteActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_court_vote);
+        getWindow().getDecorView().setBackgroundColor(getColor(R.color.court_bg));
 
         postId = getIntent().getStringExtra(EXTRA_POST_ID);
         if (postId == null || CourtRepository.findById(postId) == null) {
@@ -91,6 +97,9 @@ public class CourtVoteActivity extends AppCompatActivity {
         textMyVote = findViewById(R.id.textMyVote);
         angerA = findViewById(R.id.angerA);
         angerB = findViewById(R.id.angerB);
+        cardA = findViewById(R.id.cardA);
+        cardB = findViewById(R.id.cardB);
+        textVoteToast = findViewById(R.id.textVoteToast);
 
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
             @Override
@@ -124,6 +133,8 @@ public class CourtVoteActivity extends AppCompatActivity {
         }
         CourtRepository.vote(postId, choice);
         render();
+        shakeScreen();   // 투표 후 흔들림
+        showVoteToast();
     }
 
     private void render() {
@@ -147,6 +158,8 @@ public class CourtVoteActivity extends AppCompatActivity {
         boolean showResult = voted || expired;
         layoutVoteButtons.setVisibility(showResult ? View.GONE : View.VISIBLE);
         layoutResult.setVisibility(showResult ? View.VISIBLE : View.GONE);
+        setDim(cardA, showResult);
+        setDim(cardB, showResult);
 
         if (showResult) {
             barResult.setProgress(post.percentA());
@@ -187,5 +200,63 @@ public class CourtVoteActivity extends AppCompatActivity {
                 PropertyValuesHolder.ofFloat(View.SCALE_Y, 1f, 1.2f, 1f));
         animator.setDuration(600);
         animator.start();
+    }
+
+    // 투표하면 화면 전체가 미세하게 떨림 (우주의 균형이 흔들리는 느낌)
+    private void shakeScreen() {
+        View content = findViewById(android.R.id.content);
+        if (content == null) {
+            return;
+        }
+        float d = getResources().getDisplayMetrics().density;
+        ObjectAnimator animator = ObjectAnimator.ofPropertyValuesHolder(content,
+                PropertyValuesHolder.ofFloat(View.TRANSLATION_X,
+                        0f, -6f * d, 6f * d, -5f * d, 5f * d, -3f * d, 3f * d, 0f),
+                PropertyValuesHolder.ofFloat(View.TRANSLATION_Y,
+                        0f, 4f * d, -4f * d, 3f * d, -3f * d, 2f * d, -2f * d, 0f));
+        animator.setDuration(450);
+        animator.start();
+        content.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS);
+    }
+
+    // 투표 후(또는 마감 후) A/B 카드 위에 반투명 검정을 씌움
+    private void setDim(View card, boolean dim) {
+        if (card == null) {
+            return;
+        }
+        if (dim) {
+            GradientDrawable shade = new GradientDrawable();
+            shade.setColor(0x99000000); // 앞 두 자리가 불투명도 (99 = 약 60%)
+            shade.setCornerRadius(16f * getResources().getDisplayMetrics().density);
+            card.setForeground(shade);
+        } else {
+            card.setForeground(null);
+        }
+    }
+
+    // "당신의 한 표가..." 메시지: 나타났다가 잠시 후 사라짐
+    private void showVoteToast() {
+        textVoteToast.animate().cancel();
+        textVoteToast.setVisibility(View.VISIBLE);
+        textVoteToast.setAlpha(0f);
+        textVoteToast.animate()
+                .alpha(1f)
+                .setDuration(250)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        textVoteToast.animate()
+                                .alpha(0f)
+                                .setStartDelay(1600) // 1.6초 머문 뒤
+                                .setDuration(400)    // 0.4초 동안 사라짐
+                                .withEndAction(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        textVoteToast.setVisibility(View.GONE);
+                                        textVoteToast.animate().setStartDelay(0);
+                                    }
+                                });
+                    }
+                });
     }
 }

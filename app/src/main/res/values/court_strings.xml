@@ -26,7 +26,8 @@
     <string name="court_anonymous_note">투표는 100% 익명으로 진행돼요</string>
     <string name="court_vote_a">A 편 들어주기</string>
     <string name="court_vote_b">B 편 들어주기</string>
-    <string name="court_result">당신의 한 표가 우주의 균형을 흔들었어요!</string>
+    <string name="court_result">투표 결과</string>
+    <string name="court_vote_toast">당신의 한 표가 우주의 균형을 흔들었어요!</string>
     <string name="court_voted_a">A 입장에 투표했어요</string>
     <string name="court_voted_b">B 입장에 투표했어요</string>
 </resources>
