@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#100D24">
+
+    <!-- 우주 배경 -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/bg_galaxy"
+        android:scaleType="centerCrop"
+        android:contentDescription="@null"/>
+
+    <!-- 어두운 배경 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#880D0922"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <!-- 뒤로가기 -->
+        <TextView
+            android:id="@+id/btnBack"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="‹  뒤로가기"
+            android:textSize="18sp"
+            android:textColor="#E9D8FF"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true"/>
+
+        <!-- 제목 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="45dp"
+            android:text="행성 생성"
+            android:textColor="#FFFFFF"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:gravity="center"/>
+
+        <!-- 임시 안내 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:text="새로운 추억을 행성에 담아보세요."
+            android:textColor="#D4C5EA"
+            android:textSize="16sp"
+            android:gravity="center"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="60dp"
+            android:text="행성 생성 기능 구현 예정"
+            android:textColor="#B8A9D2"
+            android:textSize="15sp"
+            android:gravity="center"/>
+
+    </LinearLayout>
+
+</FrameLayout>
