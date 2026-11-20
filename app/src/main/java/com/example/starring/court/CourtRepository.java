@@ -96,12 +96,30 @@ public final class CourtRepository {
         post.myVote = choice;
     }
 
-    // 화해 처리: 해결 시각을 기록 (삼킨 별은 계산으로 0이 되어 자동 반환)
-    public static synchronized void resolve(String id) {
+    // 내 배운점 제출. 상대도 이미 썼다면 이 순간 화해 완료(해결 시각 기록 -> 삼킨 별 반환)
+    // TODO(DB 연동 후): 내 uid 기준으로 Firestore에 저장, 둘 다 있으면 resolvedAt 기록
+    public static synchronized void submitMyLesson(String id, String lesson) {
         CourtPost post = findById(id);
-        if (post == null || post.isResolved()) {
+        if (post == null || post.isResolved() || post.myLesson != null) {
             return;
         }
-        post.resolvedAt = System.currentTimeMillis();
+        post.myLesson = lesson;
+        resolveIfBothWrote(post);
+    }
+
+    // [테스트용] 상대 폰에서 배운점을 쓴 것처럼 처리 (DB 연동 후 삭제)
+    public static synchronized void submitPartnerLessonForTest(String id) {
+        CourtPost post = findById(id);
+        if (post == null || post.isResolved() || post.partnerLesson != null) {
+            return;
+        }
+        post.partnerLesson = "(테스트) 상대방도 이번 일로 배운 점을 적었어요.";
+        resolveIfBothWrote(post);
+    }
+
+    private static void resolveIfBothWrote(CourtPost post) {
+        if (post.myLesson != null && post.partnerLesson != null && !post.isResolved()) {
+            post.resolvedAt = System.currentTimeMillis();
+        }
     }
 }

@@ -22,6 +22,8 @@ public class CourtPost {
     public long deadlineAt;
     public long resolvedAt;      // 화해한 시각 (0 = 아직 화해 전)
     public boolean mine;         // 내가 만든 블랙홀인지 (화해는 만든 사람만)
+    public String myLesson;      // 내가 쓴 배운점 (null = 아직 안 씀)
+    public String partnerLesson; // 상대가 쓴 배운점 (null = 아직 안 씀)
 
     // 내가 어느 쪽에 투표했는지 (익명 투표라 로컬 상태로만 관리)
     public int myVote = VOTE_NONE;
@@ -73,6 +75,14 @@ public class CourtPost {
 
     public boolean isResolved() {
         return resolvedAt > 0;
+    }
+
+    // 화해 완료 시점에 돌아온 별 개수 (화해한 시각까지 삼킨 만큼)
+    public int returnedStars(int availableStars) {
+        if (!isResolved()) {
+            return 0;
+        }
+        return StarConsumption.swallowed(createdAt, 0, resolvedAt, availableStars);
     }
 
     // 지금 삼킨 별 개수 (availableStars = 은하계의 애기별 수)

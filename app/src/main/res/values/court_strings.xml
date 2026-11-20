@@ -31,13 +31,21 @@
     <string name="court_voted_a">A 입장에 투표했어요</string>
     <string name="court_voted_b">B 입장에 투표했어요</string>
 
+    <string name="court_reconcile_go">화해하러 가기</string>
     <string name="court_reconcile_title">화해하기</string>
     <string name="court_reconcile_swallowed">블랙홀이 삼킨 별</string>
-    <string name="court_reconcile_guide">화해하면 블랙홀이 사라지고\n삼켜진 별이 모두 돌아와요</string>
-    <string name="court_reconcile_button">화해하기</string>
+    <string name="court_reconcile_returned">돌아온 별</string>
     <string name="court_reconcile_no_more">더 이상 삼킬 별이 없어요</string>
     <string name="court_reconcile_done_next">블랙홀이 사라졌어요</string>
-    <string name="court_reconcile_done_guide">별이 모두 돌아왔어요. 서로의 마음이 닿았네요 💫</string>
-    <string name="court_reconcile_already">이미 화해한 블랙홀이에요</string>
-    <string name="court_reconcile_go">화해하러 가기</string>
+    <string name="court_reconcile_guide_input">각자 이번 일에서 배운 점을 적어야\n블랙홀이 풀리고 별이 돌아와요</string>
+    <string name="court_reconcile_guide_wait">상대방도 배운 점을 적으면\n블랙홀이 풀리고 별이 돌아와요</string>
+    <string name="court_reconcile_guide_done">별이 모두 돌아왔어요. 서로의 마음이 닿았네요 💫</string>
+    <string name="court_reconcile_label_lesson">내가 배운 점</string>
+    <string name="court_reconcile_hint_lesson">이번 갈등에서 배운 점을 적어 주세요</string>
+    <string name="court_reconcile_submit">배운점 제출</string>
+    <string name="court_reconcile_lesson_empty">배운 점을 입력해 주세요</string>
+    <string name="court_reconcile_waiting">상대방이 배운 점을 쓰고 있어요.\n조금만 기다려 주세요 ⏳</string>
+    <string name="court_reconcile_my_lesson">내가 쓴 배운점</string>
+    <string name="court_reconcile_partner_lesson">상대가 쓴 배운점</string>
+    <string name="court_reconcile_partner_test">[테스트용] 상대가 배운점을 쓴 것으로 처리</string>
 </resources>

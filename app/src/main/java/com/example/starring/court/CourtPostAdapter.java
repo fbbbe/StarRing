@@ -14,6 +14,9 @@ import com.example.starring.R;
 import java.util.ArrayList;
 import java.util.List;
 
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.GradientDrawable;
+
 /** 재판장 메인의 갈등 목록 카드 어댑터 */
 public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Holder> {
 
@@ -93,6 +96,7 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
         holder.percentA.setText("A " + post.percentA() + "%");
         holder.percentB.setText("B " + post.percentB() + "%");
         bindRemaining(holder.remaining, post, holder.normalColor);
+        applyDim(holder, post.isResolved());
 
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -109,6 +113,18 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
         return items.size();
     }
 
+    // 화해 완료된 글: 카드 위에 반투명 검정 (투표 후 A/B 카드와 같은 느낌)
+    private void applyDim(Holder holder, boolean dim) {
+        if (dim) {
+            GradientDrawable shade = new GradientDrawable();
+            shade.setColor(0x99000000);
+            shade.setCornerRadius(16f * holder.itemView.getResources().getDisplayMetrics().density);
+            holder.itemView.setForeground(shade);
+        } else {
+            holder.itemView.setForeground(holder.defaultForeground);
+        }
+    }
+
     static class Holder extends RecyclerView.ViewHolder {
         final TextView title;
         final ProgressBar bar;
@@ -116,6 +132,7 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
         final TextView percentB;
         final TextView remaining;
         final int normalColor;
+        final Drawable defaultForeground;
 
         Holder(@NonNull View itemView) {
             super(itemView);
@@ -125,6 +142,7 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
             percentB = itemView.findViewById(R.id.textPercentB);
             remaining = itemView.findViewById(R.id.textRemaining);
             normalColor = remaining.getCurrentTextColor();
+            defaultForeground = itemView.getForeground();
         }
     }
 }
