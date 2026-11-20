@@ -137,4 +137,24 @@
             android:textSize="17sp"
             android:textStyle="bold" />
     </LinearLayout>
+
+    <!-- 블랙홀 생성 직후 잠깐 뜨는 메시지 (하단) -->
+    <TextView
+        android:id="@+id/textNotice"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginStart="32dp"
+        android:layout_marginEnd="32dp"
+        android:layout_marginBottom="110dp"
+        android:background="@drawable/court_toast_bg"
+        android:gravity="center"
+        android:paddingStart="20dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="12dp"
+        android:textColor="@color/court_text"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 </FrameLayout>

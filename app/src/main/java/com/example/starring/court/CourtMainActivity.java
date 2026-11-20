@@ -15,6 +15,11 @@ import com.example.starring.R;
 
 import java.util.List;
 
+import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultCallback;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+
 /**
  * 우주 재판장 메인 화면
  * - 갈등 목록 (최신순 / 마감임박순)
@@ -28,6 +33,20 @@ public class CourtMainActivity extends AppCompatActivity {
     private TextView tabDeadline;
     private TextView textEmpty;
     private boolean latestFirst = true;
+
+    private TextView textNotice;
+
+    // 작성 화면에서 전송에 성공하고 돌아오면 하단 메시지 표시
+    private final ActivityResultLauncher<Intent> writeLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            new ActivityResultCallback<ActivityResult>() {
+                @Override
+                public void onActivityResult(ActivityResult result) {
+                    if (result.getResultCode() == RESULT_OK) {
+                        showNotice(getString(R.string.court_created));
+                    }
+                }
+            });
 
     // 1초마다 남은 시간 갱신
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -54,6 +73,7 @@ public class CourtMainActivity extends AppCompatActivity {
         tabLatest = findViewById(R.id.tabLatest);
         tabDeadline = findViewById(R.id.tabDeadline);
         textEmpty = findViewById(R.id.textEmpty);
+        textNotice = findViewById(R.id.textNotice);
 
         tabLatest.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -84,7 +104,7 @@ public class CourtMainActivity extends AppCompatActivity {
         findViewById(R.id.btnCreate).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(CourtMainActivity.this, CourtWriteActivity.class));
+                writeLauncher.launch(new Intent(CourtMainActivity.this, CourtWriteActivity.class));
             }
         });
 
@@ -124,5 +144,31 @@ public class CourtMainActivity extends AppCompatActivity {
         List<CourtPost> posts = CourtRepository.getPosts(latestFirst);
         adapter.submit(posts);
         textEmpty.setVisibility(posts.isEmpty() ? View.VISIBLE : View.GONE);
+    }
+    // 하단에 잠깐 떴다 사라지는 메시지
+    private void showNotice(String message) {
+        textNotice.animate().cancel();
+        textNotice.setText(message);
+        textNotice.setVisibility(View.VISIBLE);
+        textNotice.setAlpha(0f);
+        textNotice.animate()
+                .alpha(1f)
+                .setDuration(250)
+                .withEndAction(new Runnable() {
+                    @Override
+                    public void run() {
+                        textNotice.animate()
+                                .alpha(0f)
+                                .setStartDelay(1600)
+                                .setDuration(400)
+                                .withEndAction(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        textNotice.setVisibility(View.GONE);
+                                        textNotice.animate().setStartDelay(0);
+                                    }
+                                });
+                    }
+                });
     }
 }

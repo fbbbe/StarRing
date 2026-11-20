@@ -82,7 +82,11 @@ public class CourtWriteActivity extends AppCompatActivity {
 
         CourtRepository.add(post);
 
-        Toast.makeText(this, R.string.court_created, Toast.LENGTH_SHORT).show();
+        setResult(RESULT_OK);
+        if (getCallingActivity() == null) {
+            // 은하계 메인처럼 결과를 받지 않는 화면에서 열린 경우: 돌아간 화면이 대신 표시
+            CourtNotice.setPending(getString(R.string.court_created));
+        }
         finish();
     }
 }

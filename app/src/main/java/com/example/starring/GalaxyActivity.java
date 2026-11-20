@@ -22,6 +22,7 @@ import java.util.Calendar;
 import java.util.TimeZone;
 import com.example.starring.court.CourtMainActivity;
 import com.example.starring.court.CourtWriteActivity;
+import com.example.starring.court.CourtNotice;
 
 public class GalaxyActivity extends Activity {
 
@@ -508,6 +509,7 @@ public class GalaxyActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        CourtNotice.showPendingIfAny(this);
 
         handler.removeCallbacks(dateChecker);
         handler.post(dateChecker);
