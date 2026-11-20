@@ -189,7 +189,7 @@
                     android:id="@+id/layoutVoteButtons"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
+                    android:layout_marginTop="40dp"
                     android:orientation="vertical">
 
                     <TextView
@@ -236,8 +236,8 @@
                     android:id="@+id/layoutResult"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="24dp"
-                    android:background="@drawable/court_card_bg"
+                    android:layout_marginTop="40dp"
+                    android:background="@drawable/court_situation_bg"
                     android:orientation="vertical"
                     android:padding="16dp"
                     android:visibility="gone">

@@ -138,8 +138,8 @@ public class CourtVoteActivity extends AppCompatActivity {
 
     private void vote(int choice) {
         CourtPost post = CourtRepository.findById(postId);
-        if (post == null || post.isExpired() || post.myVote != CourtPost.VOTE_NONE) {
-            render(); // 마감됐거나 이미 투표함 -> 투표 불가
+        if (post == null || post.isExpired() || post.mine || post.myVote != CourtPost.VOTE_NONE) {
+            render(); // 마감됐거나 이미 투표함, 내가 올린 글 -> 투표 불가
             return;
         }
         CourtRepository.vote(postId, choice);
@@ -163,17 +163,19 @@ public class CourtVoteActivity extends AppCompatActivity {
 
         boolean voted = post.myVote != CourtPost.VOTE_NONE;
         boolean expired = post.isExpired();
+        boolean mine = post.mine;
         lastExpired = expired;
 
-        // 투표 전(마감 전): 버튼만 / 투표했거나 마감됨: 결과만
-        boolean showResult = voted || expired;
+        // 내가 올린 블랙홀은 투표할 수 없음 -> 결과만 보여주고 [화해하러 가기]
+        boolean showResult = voted || expired || mine;
         layoutVoteButtons.setVisibility(showResult ? View.GONE : View.VISIBLE);
         layoutResult.setVisibility(showResult ? View.VISIBLE : View.GONE);
-        setDim(cardA, showResult);
-        setDim(cardB, showResult);
 
-        // 내가 만든 블랙홀이고 아직 화해 전이면 [화해하러 가기] 표시
-        btnReconcileGo.setVisibility(post.mine && !post.isResolved() ? View.VISIBLE : View.GONE);
+        // 어둡게 처리는 투표했거나 마감된 경우만 (내 글은 입장 카드를 그대로 보여줌)
+        setDim(cardA, voted || expired);
+        setDim(cardB, voted || expired);
+
+        btnReconcileGo.setVisibility(mine && !post.isResolved() ? View.VISIBLE : View.GONE);
 
         if (showResult) {
             barResult.setProgress(post.percentA());
@@ -182,8 +184,10 @@ public class CourtVoteActivity extends AppCompatActivity {
             if (voted) {
                 textMyVote.setText(post.myVote == CourtPost.VOTE_A
                         ? R.string.court_voted_a : R.string.court_voted_b);
-            } else {
+            } else if (expired) {
                 textMyVote.setText("투표가 마감되었어요");
+            } else {
+                textMyVote.setText("내가 올린 블랙홀이에요. 투표 결과를 확인해 보세요");
             }
         }
     }
