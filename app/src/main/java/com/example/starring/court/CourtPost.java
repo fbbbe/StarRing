@@ -20,6 +20,8 @@ public class CourtPost {
     public int votesB;
     public long createdAt;
     public long deadlineAt;
+    public long resolvedAt;      // 화해한 시각 (0 = 아직 화해 전)
+    public boolean mine;         // 내가 만든 블랙홀인지 (화해는 만든 사람만)
 
     // 내가 어느 쪽에 투표했는지 (익명 투표라 로컬 상태로만 관리)
     public int myVote = VOTE_NONE;
@@ -64,8 +66,19 @@ public class CourtPost {
         return deadlineAt - System.currentTimeMillis();
     }
 
+    // 시간이 지났거나 화해로 해결된 글은 투표가 닫힘
     public boolean isExpired() {
-        return remainingMillis() <= 0;
+        return isResolved() || remainingMillis() <= 0;
+    }
+
+    public boolean isResolved() {
+        return resolvedAt > 0;
+    }
+
+    // 지금 삼킨 별 개수 (availableStars = 은하계의 애기별 수)
+    public int swallowedStars(int availableStars) {
+        return StarConsumption.swallowed(createdAt, resolvedAt,
+                System.currentTimeMillis(), availableStars);
     }
 
     // 마감 1시간 미만 -> 긴박 모드(붉은 깜빡임)

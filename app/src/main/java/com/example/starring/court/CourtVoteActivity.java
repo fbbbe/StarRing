@@ -2,6 +2,7 @@ package com.example.starring.court;
 
 import android.animation.ObjectAnimator;
 import android.animation.PropertyValuesHolder;
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -42,6 +43,7 @@ public class CourtVoteActivity extends AppCompatActivity {
     private View angerB;
     private View cardA;
     private View cardB;
+    private View btnReconcileGo;
     private TextView textVoteToast;
     private int remainingNormalColor;
     private boolean lastExpired;
@@ -99,6 +101,15 @@ public class CourtVoteActivity extends AppCompatActivity {
         angerB = findViewById(R.id.angerB);
         cardA = findViewById(R.id.cardA);
         cardB = findViewById(R.id.cardB);
+        btnReconcileGo = findViewById(R.id.btnReconcileGo);
+        btnReconcileGo.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(CourtVoteActivity.this, CourtReconcileActivity.class);
+                intent.putExtra(CourtReconcileActivity.EXTRA_POST_ID, postId);
+                startActivity(intent);
+            }
+        });
         textVoteToast = findViewById(R.id.textVoteToast);
 
         findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
@@ -161,6 +172,9 @@ public class CourtVoteActivity extends AppCompatActivity {
         setDim(cardA, showResult);
         setDim(cardB, showResult);
 
+        // 내가 만든 블랙홀이고 아직 화해 전이면 [화해하러 가기] 표시
+        btnReconcileGo.setVisibility(post.mine && !post.isResolved() ? View.VISIBLE : View.GONE);
+
         if (showResult) {
             barResult.setProgress(post.percentA());
             textPercentA.setText("A " + post.percentA() + "%");
@@ -177,6 +191,7 @@ public class CourtVoteActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        render(); // 화해하고 돌아왔을 때 상태 갱신
         handler.postDelayed(wiggleLoop, 800);
         handler.removeCallbacks(ticker);
         handler.post(ticker);

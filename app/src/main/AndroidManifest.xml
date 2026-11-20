@@ -42,6 +42,10 @@
             android:name=".court.CourtVoteActivity"
             android:exported="false" />
 
+        <!-- 화해 -->
+        <activity android:name=".court.CourtReconcileActivity"
+            android:exported="false" />
+
         <!-- 로그인 -->
         <activity
             android:name=".auth.LoginActivity"

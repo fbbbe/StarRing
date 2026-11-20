@@ -292,6 +292,23 @@
                         android:textColor="@color/court_purple_light"
                         android:textSize="14sp" />
                 </LinearLayout>
+
+                <!-- 내가 만든 블랙홀일 때만: 화해 화면으로 -->
+                <TextView
+                    android:id="@+id/btnReconcileGo"
+                    android:layout_width="match_parent"
+                    android:layout_height="56dp"
+                    android:layout_marginTop="16dp"
+                    android:background="@drawable/court_button_primary"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:foreground="?attr/selectableItemBackground"
+                    android:gravity="center"
+                    android:text="@string/court_reconcile_go"
+                    android:textColor="@color/court_text"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
             </LinearLayout>
         </ScrollView>
     </LinearLayout>

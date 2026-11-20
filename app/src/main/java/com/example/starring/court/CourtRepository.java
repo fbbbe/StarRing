@@ -95,4 +95,13 @@ public final class CourtRepository {
         }
         post.myVote = choice;
     }
+
+    // 화해 처리: 해결 시각을 기록 (삼킨 별은 계산으로 0이 되어 자동 반환)
+    public static synchronized void resolve(String id) {
+        CourtPost post = findById(id);
+        if (post == null || post.isResolved()) {
+            return;
+        }
+        post.resolvedAt = System.currentTimeMillis();
+    }
 }

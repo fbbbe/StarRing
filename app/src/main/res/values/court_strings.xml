@@ -30,4 +30,14 @@
     <string name="court_vote_toast">당신의 한 표가 우주의 균형을 흔들었어요!</string>
     <string name="court_voted_a">A 입장에 투표했어요</string>
     <string name="court_voted_b">B 입장에 투표했어요</string>
+
+    <string name="court_reconcile_title">화해하기</string>
+    <string name="court_reconcile_swallowed">블랙홀이 삼킨 별</string>
+    <string name="court_reconcile_guide">화해하면 블랙홀이 사라지고\n삼켜진 별이 모두 돌아와요</string>
+    <string name="court_reconcile_button">화해하기</string>
+    <string name="court_reconcile_no_more">더 이상 삼킬 별이 없어요</string>
+    <string name="court_reconcile_done_next">블랙홀이 사라졌어요</string>
+    <string name="court_reconcile_done_guide">별이 모두 돌아왔어요. 서로의 마음이 닿았네요 💫</string>
+    <string name="court_reconcile_already">이미 화해한 블랙홀이에요</string>
+    <string name="court_reconcile_go">화해하러 가기</string>
 </resources>

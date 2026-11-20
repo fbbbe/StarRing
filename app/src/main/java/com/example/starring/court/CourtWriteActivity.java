@@ -78,6 +78,8 @@ public class CourtWriteActivity extends AppCompatActivity {
                 now,
                 now + VOTE_DURATION);
 
+        post.mine = true;
+
         CourtRepository.add(post);
 
         Toast.makeText(this, R.string.court_created, Toast.LENGTH_SHORT).show();
