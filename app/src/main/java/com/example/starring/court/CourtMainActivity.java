@@ -75,6 +75,13 @@ public class CourtMainActivity extends AppCompatActivity {
         textEmpty = findViewById(R.id.textEmpty);
         textNotice = findViewById(R.id.textNotice);
 
+        findViewById(R.id.btnMyBlackholes).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                startActivity(new Intent(CourtMainActivity.this, CourtMyBlackholesActivity.class));
+            }
+        });
+
         tabLatest.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

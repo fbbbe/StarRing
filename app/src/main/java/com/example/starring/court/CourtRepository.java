@@ -67,6 +67,24 @@ public final class CourtRepository {
         return copy;
     }
 
+    // 내가 올린 블랙홀 목록 (resolved = false: 진행 중 / true: 화해 완료), 최신순
+    // TODO(DB 연동 후): mine 대신 작성자 커플 식별값으로 조회
+    public static synchronized List<CourtPost> getMyPosts(boolean resolved) {
+        List<CourtPost> result = new ArrayList<>();
+        for (CourtPost post : POSTS) {
+            if (post.mine && post.isResolved() == resolved) {
+                result.add(post);
+            }
+        }
+        Collections.sort(result, new Comparator<CourtPost>() {
+            @Override
+            public int compare(CourtPost a, CourtPost b) {
+                return Long.compare(b.createdAt, a.createdAt);
+            }
+        });
+        return result;
+    }
+
     public static synchronized CourtPost findById(String id) {
         for (CourtPost post : POSTS) {
             if (post.id.equals(id)) {

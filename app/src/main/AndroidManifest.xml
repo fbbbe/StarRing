@@ -42,6 +42,10 @@
             android:name=".court.CourtVoteActivity"
             android:exported="false" />
 
+        <!-- 내 블랙홀 목록 -->
+        <activity android:name=".court.CourtMyBlackholesActivity"
+            android:exported="false" />
+
         <!-- 화해 -->
         <activity android:name=".court.CourtReconcileActivity"
             android:exported="false" />

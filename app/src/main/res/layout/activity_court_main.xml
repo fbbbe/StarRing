@@ -14,7 +14,7 @@
         android:fitsSystemWindows="true"
         android:orientation="vertical">
 
-        <!-- 상단바: 뒤로가기 / 제목 / 은하계 이름 -->
+        <!-- 상단바: 뒤로가기 / 제목 / 내 블랙홀 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="56dp"
@@ -41,18 +41,23 @@
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
+            <!-- 내 블랙홀 (지난 블랙홀 목록으로 이동) -->
             <TextView
-                android:visibility="gone"
+                android:id="@+id/btnMyBlackholes"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:background="@drawable/court_pill_bg"
-                android:paddingStart="12dp"
-                android:paddingTop="6dp"
-                android:paddingEnd="12dp"
-                android:paddingBottom="6dp"
-                android:text="@string/court_galaxy_name"
+                android:clickable="true"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackground"
+                android:paddingStart="14dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="7dp"
+                android:text="@string/court_my_button"
                 android:textColor="@color/court_text"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
         <!-- 정렬 탭 -->

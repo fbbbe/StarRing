@@ -48,4 +48,12 @@
     <string name="court_reconcile_my_lesson">내가 쓴 배운점</string>
     <string name="court_reconcile_partner_lesson">상대가 쓴 배운점</string>
     <string name="court_reconcile_partner_test">[테스트용] 상대가 배운점을 쓴 것으로 처리</string>
+
+    <string name="court_my_button">내 블랙홀</string>
+    <string name="court_my_title">내 블랙홀</string>
+    <string name="court_my_section_ongoing">진행 중</string>
+    <string name="court_my_section_past">지난 블랙홀</string>
+    <string name="court_my_empty_ongoing">진행 중인 블랙홀이 없어요</string>
+    <string name="court_my_empty_past">아직 화해한 블랙홀이 없어요</string>
+
 </resources>
