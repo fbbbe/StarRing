@@ -11,6 +11,8 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 
+import com.example.starring.court.BlackholeEffect;   // na가 추가
+
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -60,8 +62,8 @@ public class GalaxyView extends View {
     private final Bitmap[] planetBitmaps = new Bitmap[6];
 
     // 블랙홀 (우주 재판장에서 내 블랙홀이 진행 중일 때만 표시) - na가 추가
-    private final Bitmap blackholeBitmap;
-    private boolean blackholeVisible = false;
+    // 모양/움직임은 court/BlackholeEffect.java 에서 관리
+    private final BlackholeEffect blackholeEffect;
     // 위치(은하계 중심 기준 dp)와 크기(dp): 자리를 바꾸려면 이 숫자만 수정 - na가 추가
     private static final float BLACKHOLE_X_DP = 0f;
     private static final float BLACKHOLE_Y_DP = -170f;
@@ -220,10 +222,8 @@ public class GalaxyView extends View {
                     );
         }
 
-        // 블랙홀 이미지 - na가 추가
-        blackholeBitmap = BitmapFactory.decodeResource(
-                getResources(), R.drawable.blackhole_aqua
-        );
+        // 블랙홀 연출 - na가 추가
+        blackholeEffect = new BlackholeEffect(this);
 
         // 순서가 중요함.
         // 기존 천체 위치를 먼저 확정한 뒤 행성을 배치
@@ -668,16 +668,14 @@ public class GalaxyView extends View {
     }
 
     // 우주 재판장 연동: 진행 중인 내 블랙홀이 있으면 표시 - na가 추가
+    // (없다가 생기는 순간에만 등장 연출이 나옴)
     public void setBlackholeVisible(boolean visible) {
+        blackholeEffect.setVisible(visible);
+    }
 
-        if (blackholeVisible == visible) {
-            return;
-        }
-
-        blackholeVisible = visible;
-
-        // TODO(연출): false -> true 로 바뀌는 순간에 생성 연출 시작
-        invalidate();
+    // 블랙홀 아래 타이머 글자 (null 이면 숨김), urgent = 붉게 깜빡임 - na가 추가
+    public void setBlackholeLabel(String text, boolean urgent) {
+        blackholeEffect.setLabel(text, urgent);
     }
 
     public void setOnBlackholeClickListener(OnBlackholeClickListener listener) {
@@ -687,7 +685,7 @@ public class GalaxyView extends View {
     // 드래그가 아닌 짧은 탭이면서 블랙홀 이미지 위를 눌렀는지
     private boolean isTapOnBlackhole(float upX, float upY) {
 
-        if (!blackholeVisible || blackholeClickListener == null) {
+        if (!blackholeEffect.isVisible() || blackholeClickListener == null) {
             return false;
         }
 
@@ -713,21 +711,40 @@ public class GalaxyView extends View {
     }
 
     private void drawBlackhole(Canvas canvas) {
-        if (!blackholeVisible || blackholeBitmap == null) { return; }
+        if (!blackholeEffect.isVisible()) { return; }
         float x = getWidth() / 2f + offsetX
                 + BLACKHOLE_X_DP * density * zoom;
         float y = getHeight() / 2f + offsetY
                 + BLACKHOLE_Y_DP * density * zoom;
         float half = BLACKHOLE_SIZE_DP * density * zoom / 2f;
-        if (x + half < 0 || x - half > getWidth()
-                || y + half < 0 || y - half > getHeight()) {
+
+        // 후광과 아래 타이머까지 감안해 넉넉하게 화면 밖 판정
+        float margin = half * 1.8f + 40f * density;
+        if (x + margin < 0 || x - margin > getWidth()
+                || y + margin < 0 || y - margin > getHeight()) {
             return;
         }
 
-        drawRect.set(x - half, y - half, x + half, y + half);
-        canvas.drawBitmap(
-                blackholeBitmap, null, drawRect, imagePaint
-        );
+        blackholeEffect.draw(canvas, x, y, half);
+    }
+
+    // 화면에 보일 때만 블랙홀 애니메이션 동작 (배터리 절약) - na가 추가
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        blackholeEffect.setRunning(getWindowVisibility() == View.VISIBLE);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        blackholeEffect.setRunning(false);
+        super.onDetachedFromWindow();
+    }
+
+    @Override
+    protected void onWindowVisibilityChanged(int visibility) {
+        super.onWindowVisibilityChanged(visibility);
+        blackholeEffect.setRunning(visibility == View.VISIBLE && isAttachedToWindow());
     }
 
     private void drawStars(Canvas canvas) {

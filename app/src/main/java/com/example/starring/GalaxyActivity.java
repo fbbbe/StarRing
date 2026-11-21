@@ -73,6 +73,15 @@ public class GalaxyActivity extends Activity {
             R.drawable.solar_neptune
     };
 
+    // 블랙홀 아래 타이머 (1초마다 갱신) - na
+    private final Runnable blackholeLabelTicker = new Runnable() {
+        @Override
+        public void run() {
+            updateBlackholeLabel();
+            handler.postDelayed(this, 1000);
+        }
+    };
+
     private final Runnable dateChecker = new Runnable() {
         @Override
         public void run() {
@@ -521,11 +530,26 @@ public class GalaxyActivity extends Activity {
     // 7. 생명주기
     // ------------------------------------
 
+    // 진행 중인 내 블랙홀의 마감까지 남은 시간을 블랙홀 아래에 표시 - na
+    private void updateBlackholeLabel() {
+        List<CourtPost> open = CourtRepository.getMyPosts(false);
+        if (open.isEmpty()) {
+            galaxyView.setBlackholeLabel(null, false);
+            return;
+        }
+        CourtPost post = open.get(0);
+        galaxyView.setBlackholeLabel(
+                post.isExpired() ? "마감됨" : post.remainingClock(),
+                post.isUrgent());
+    }
+
     @Override
     protected void onResume() {
         super.onResume();
         CourtNotice.showPendingIfAny(this);
         galaxyView.setBlackholeVisible(CourtRepository.hasOpenBlackhole()); // na 추가
+        handler.removeCallbacks(blackholeLabelTicker); // na 추가
+        handler.post(blackholeLabelTicker); // na 추가
 
         handler.removeCallbacks(dateChecker);
         handler.post(dateChecker);
@@ -535,6 +559,7 @@ public class GalaxyActivity extends Activity {
     protected void onPause() {
 
         handler.removeCallbacks(dateChecker);
+        handler.removeCallbacks(blackholeLabelTicker); // na 추가
         super.onPause();
     }
 
