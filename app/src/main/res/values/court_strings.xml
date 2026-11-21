@@ -55,5 +55,6 @@
     <string name="court_my_section_past">지난 블랙홀</string>
     <string name="court_my_empty_ongoing">진행 중인 블랙홀이 없어요</string>
     <string name="court_my_empty_past">아직 화해한 블랙홀이 없어요</string>
+    <string name="court_already_open">이미 진행 중인 블랙홀이 있어요. 화해를 마치면 새로 만들 수 있어요</string>
 
 </resources>

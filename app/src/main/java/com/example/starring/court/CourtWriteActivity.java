@@ -31,6 +31,12 @@ public class CourtWriteActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // 이미 진행 중인 내 블랙홀이 있으면 새로 못 만듦
+        if (CourtRepository.hasOpenBlackhole()) {
+            CourtNotice.setPending(getString(R.string.court_already_open));
+            finish();
+            return;
+        }
         setContentView(R.layout.activity_court_write);
 
         editTitle = findViewById(R.id.editTitle);

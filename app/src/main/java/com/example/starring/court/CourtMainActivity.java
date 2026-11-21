@@ -111,6 +111,10 @@ public class CourtMainActivity extends AppCompatActivity {
         findViewById(R.id.btnCreate).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                if (CourtRepository.hasOpenBlackhole()) {
+                    showNotice(getString(R.string.court_already_open));
+                    return;
+                }
                 writeLauncher.launch(new Intent(CourtMainActivity.this, CourtWriteActivity.class));
             }
         });
