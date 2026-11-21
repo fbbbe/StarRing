@@ -85,6 +85,17 @@ public final class CourtRepository {
         return result;
     }
 
+    // 진행 중(화해 전)인 내 블랙홀이 하나라도 있는가 -> 은하계 메인에 블랙홀 표시 여부
+    // TODO(DB 연동 후): Firestore 의 내 커플 블랙홀 조회로 교체
+    public static synchronized boolean hasOpenBlackhole() {
+        for (CourtPost post : POSTS) {
+            if (post.mine && !post.isResolved()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static synchronized CourtPost findById(String id) {
         for (CourtPost post : POSTS) {
             if (post.id.equals(id)) {

@@ -59,6 +59,14 @@ public class GalaxyView extends View {
     private final Bitmap[] constellationBitmaps = new Bitmap[12];
     private final Bitmap[] planetBitmaps = new Bitmap[6];
 
+    // 블랙홀 (우주 재판장에서 내 블랙홀이 진행 중일 때만 표시) - na가 추가
+    private final Bitmap blackholeBitmap;
+    private boolean blackholeVisible = false;
+    // 위치(은하계 중심 기준 dp)와 크기(dp): 자리를 바꾸려면 이 숫자만 수정 - na가 추가
+    private static final float BLACKHOLE_X_DP = 0f;
+    private static final float BLACKHOLE_Y_DP = -170f;
+    private static final float BLACKHOLE_SIZE_DP = 130f;
+
     private static final int[] CONSTELLATION_RESOURCES = {
             R.drawable.constellation_01,
             R.drawable.constellation_02,
@@ -105,6 +113,16 @@ public class GalaxyView extends View {
     private float lastX;
     private float lastY;
     private boolean hadMultiTouch = false;
+
+    // 블랙홀 터치 처리 - na가 추가
+    private float downX;
+    private float downY;
+
+    public interface OnBlackholeClickListener {
+        void onBlackholeClick();
+    }
+
+    private OnBlackholeClickListener blackholeClickListener;
 
     // 현재 천체 생성 상태
     private int currentDays = -1;
@@ -201,6 +219,11 @@ public class GalaxyView extends View {
                             PLANET_RESOURCES[i]
                     );
         }
+
+        // 블랙홀 이미지 - na가 추가
+        blackholeBitmap = BitmapFactory.decodeResource(
+                getResources(), R.drawable.blackhole_aqua
+        );
 
         // 순서가 중요함.
         // 기존 천체 위치를 먼저 확정한 뒤 행성을 배치
@@ -641,6 +664,70 @@ public class GalaxyView extends View {
         drawBodies(canvas, visibleConstellations);
         drawBodies(canvas, visibleSpecialBodies);
         drawBodies(canvas, visiblePlanets);
+        drawBlackhole(canvas);   // na가 추가
+    }
+
+    // 우주 재판장 연동: 진행 중인 내 블랙홀이 있으면 표시 - na가 추가
+    public void setBlackholeVisible(boolean visible) {
+
+        if (blackholeVisible == visible) {
+            return;
+        }
+
+        blackholeVisible = visible;
+
+        // TODO(연출): false -> true 로 바뀌는 순간에 생성 연출 시작
+        invalidate();
+    }
+
+    public void setOnBlackholeClickListener(OnBlackholeClickListener listener) {
+        blackholeClickListener = listener;
+    }
+
+    // 드래그가 아닌 짧은 탭이면서 블랙홀 이미지 위를 눌렀는지
+    private boolean isTapOnBlackhole(float upX, float upY) {
+
+        if (!blackholeVisible || blackholeClickListener == null) {
+            return false;
+        }
+
+        // 10dp 이상 움직였으면 드래그로 보고 제외
+        float slop = 10f * density;
+        if (Math.abs(upX - downX) > slop || Math.abs(upY - downY) > slop) {
+            return false;
+        }
+
+        float cx = getWidth() / 2f + offsetX
+                + BLACKHOLE_X_DP * density * zoom;
+        float cy = getHeight() / 2f + offsetY
+                + BLACKHOLE_Y_DP * density * zoom;
+
+        // 이미지가 작아져도 누르기 쉽게 최소 24dp 반경은 보장
+        float radius = Math.max(
+                BLACKHOLE_SIZE_DP * density * zoom / 2f,
+                24f * density);
+
+        float dx = upX - cx;
+        float dy = upY - cy;
+        return dx * dx + dy * dy <= radius * radius;
+    }
+
+    private void drawBlackhole(Canvas canvas) {
+        if (!blackholeVisible || blackholeBitmap == null) { return; }
+        float x = getWidth() / 2f + offsetX
+                + BLACKHOLE_X_DP * density * zoom;
+        float y = getHeight() / 2f + offsetY
+                + BLACKHOLE_Y_DP * density * zoom;
+        float half = BLACKHOLE_SIZE_DP * density * zoom / 2f;
+        if (x + half < 0 || x - half > getWidth()
+                || y + half < 0 || y - half > getHeight()) {
+            return;
+        }
+
+        drawRect.set(x - half, y - half, x + half, y + half);
+        canvas.drawBitmap(
+                blackholeBitmap, null, drawRect, imagePaint
+        );
     }
 
     private void drawStars(Canvas canvas) {
@@ -852,6 +939,8 @@ public class GalaxyView extends View {
 
                 lastX = event.getX();
                 lastY = event.getY();
+                downX = lastX;
+                downY = lastY;
                 hadMultiTouch = false;
                 return true;
 
@@ -884,6 +973,12 @@ public class GalaxyView extends View {
                 return true;
 
             case MotionEvent.ACTION_UP:
+
+                // 짧게 톡 눌렀고(드래그 아님) 블랙홀 위라면 클릭 처리 - na
+                if (!hadMultiTouch
+                        && isTapOnBlackhole(event.getX(), event.getY())) {
+                    blackholeClickListener.onBlackholeClick();
+                }
 
                 if (!hadMultiTouch) {
                     performClick();

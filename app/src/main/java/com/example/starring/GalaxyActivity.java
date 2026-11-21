@@ -23,6 +23,10 @@ import java.util.TimeZone;
 import com.example.starring.court.CourtMainActivity;
 import com.example.starring.court.CourtWriteActivity;
 import com.example.starring.court.CourtNotice;
+import com.example.starring.court.CourtRepository;
+import com.example.starring.court.CourtPost;
+import com.example.starring.court.CourtVoteActivity;
+import java.util.List;
 
 public class GalaxyActivity extends Activity {
 
@@ -91,6 +95,17 @@ public class GalaxyActivity extends Activity {
                 findViewById(R.id.galaxyContainer);
 
         galaxyView = new GalaxyView(this);
+
+        // 은하계의 블랙홀을 누르면 내 블랙홀의 투표 현황 화면으로 이동 - na
+        galaxyView.setOnBlackholeClickListener(() -> {
+            List<CourtPost> open = CourtRepository.getMyPosts(false);
+            if (open.isEmpty()) {
+                return;
+            }
+            Intent intent = new Intent(GalaxyActivity.this, CourtVoteActivity.class);
+            intent.putExtra(CourtVoteActivity.EXTRA_POST_ID, open.get(0).id);
+            startActivity(intent);
+        });
 
         galaxyContainer.addView(
                 galaxyView,
@@ -510,6 +525,7 @@ public class GalaxyActivity extends Activity {
     protected void onResume() {
         super.onResume();
         CourtNotice.showPendingIfAny(this);
+        galaxyView.setBlackholeVisible(CourtRepository.hasOpenBlackhole()); // na 추가
 
         handler.removeCallbacks(dateChecker);
         handler.post(dateChecker);
