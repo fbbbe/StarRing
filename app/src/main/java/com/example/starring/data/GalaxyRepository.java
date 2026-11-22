@@ -3,9 +3,11 @@ package com.example.starring.data;
 import com.example.starring.couple.CoupleLinkException;
 import com.example.starring.couple.CoupleLinkException.Reason;
 import com.example.starring.couple.InviteCode;
+import com.example.starring.couple.StartDatePolicy;
 import com.example.starring.data.FirestoreSchema.GalaxyStatus;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -64,12 +66,15 @@ public class GalaxyRepository {
 
     // ───────────────────────── 생성 ─────────────────────────
 
-    /** 새 은하계(waiting) + 초대코드 발급. 성공하면 galaxyId 반환. */
-    public Task<String> createGalaxy(String uid) {
-        return createGalaxyAttempt(uid, 1);
+    /**
+     * 새 은하계(waiting) + 초대코드 발급. 성공하면 galaxyId 반환.
+     * @param startDate 만난 날 (UTC 00:00, StartDatePolicy로 검증된 값). 만든 사람만 입력한다.
+     */
+    public Task<String> createGalaxy(String uid, Timestamp startDate) {
+        return createGalaxyAttempt(uid, startDate, 1);
     }
 
-    private Task<String> createGalaxyAttempt(String uid, int attempt) {
+    private Task<String> createGalaxyAttempt(String uid, Timestamp startDate, int attempt) {
         final String code = InviteCode.generate();
         final DocumentReference galaxyRef = db.collection(FirestoreSchema.GALAXIES).document();
         final DocumentReference codeRef = inviteCodeRef(code);
@@ -102,6 +107,7 @@ public class GalaxyRepository {
             galaxy.put(FirestoreSchema.GALAXY_CREATED_AT, FieldValue.serverTimestamp());
             galaxy.put(FirestoreSchema.GALAXY_BORN_AT, null);
             galaxy.put(FirestoreSchema.GALAXY_UNLINKED_AT, null);
+            galaxy.put(FirestoreSchema.GALAXY_START_DATE, startDate);
 
             tx.set(galaxyRef, galaxy);
             tx.set(codeRef, inviteCodeData(galaxyRef.getId(), uid));
@@ -113,7 +119,7 @@ public class GalaxyRepository {
             if (!t.isSuccessful()
                     && CoupleLinkException.is(t.getException(), Reason.CODE_COLLISION)
                     && attempt < MAX_CODE_ATTEMPTS) {
-                return createGalaxyAttempt(uid, attempt + 1);
+                return createGalaxyAttempt(uid, startDate, attempt + 1);
             }
             return t;
         });
@@ -281,6 +287,36 @@ public class GalaxyRepository {
                     FirestoreSchema.GALAXY_NAME, name,
                     FirestoreSchema.GALAXY_STATUS, GalaxyStatus.ACTIVE,
                     FirestoreSchema.GALAXY_BORN_AT, FieldValue.serverTimestamp());
+            return null;
+        });
+    }
+
+    // ───────────────────────── 만난 날 수정 ─────────────────────────
+
+    /**
+     * 만난 날 수정. 연동된(naming/active) 은하계의 멤버 누구나 가능.
+     * 수정 UI는 메뉴바 "내 정보"(팀원 담당)에서 이 메서드를 호출하면 된다.
+     * startDate가 없는 기존 은하계에 처음 넣는 것도 이 메서드로 처리.
+     * 권한·값 검증은 firestore.rules(5번 규칙 + validStartDate)가 최종 판단.
+     *
+     * @param startDate 만난 날 (UTC 00:00). 호출 전에 StartDatePolicy.isValid로 확인할 것.
+     */
+    public Task<Void> updateStartDate(String uid, String galaxyId, Timestamp startDate) {
+        // 기기 시간은 상한 확인 편의용으로만 사용 (최종 판단은 rules의 request.time)
+        if (startDate == null
+                || !StartDatePolicy.isValid(startDate.toDate().getTime(), System.currentTimeMillis())) {
+            return Tasks.forException(new CoupleLinkException(Reason.INVALID_START_DATE));
+        }
+        final DocumentReference galaxyRef = galaxyRef(galaxyId);
+
+        return db.runTransaction(tx -> {
+            DocumentSnapshot galaxy = tx.get(galaxyRef);
+            String status = galaxy.getString(FirestoreSchema.GALAXY_STATUS);
+            boolean linked = GalaxyStatus.NAMING.equals(status) || GalaxyStatus.ACTIVE.equals(status);
+            if (!galaxy.exists() || !linked || !memberUids(galaxy).contains(uid)) {
+                throw new CoupleLinkException(Reason.NOT_LINKED);
+            }
+            tx.update(galaxyRef, FirestoreSchema.GALAXY_START_DATE, startDate);
             return null;
         });
     }

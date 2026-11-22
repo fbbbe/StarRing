@@ -8,14 +8,16 @@ package com.example.starring.data;
  *
  * galaxies/{galaxyId}
  *   ownerUid, memberUids[최대 2], inviteCode(대기 중에만), status,
- *   name, createdAt, bornAt(이름 설정 완료 시각 = 은하계 탄생), unlinkedAt
+ *   name, createdAt, bornAt(이름 설정 완료 시각 = 은하계 탄생), unlinkedAt,
+ *   startDate(만난 날, UTC 00:00 Timestamp. 만든 사람이 생성 시 입력, 연동 후 양쪽 수정 가능.
+ *             startDate 도입 전 은하계에는 없음 → GalaxyDates.effectiveStart가 bornAt으로 대체)
  *   ※ 연동 해제 시에도 memberUids는 지우지 않는다 (과거 기록 접근 유지).
  *
  * inviteCodes/{6자리 코드}
  *   galaxyId, ownerUid, createdAt
  *   ※ 트랜잭션 안에서는 쿼리가 안 되므로 코드를 문서 ID로 둔다.
  *
- * 별 개수, D-day 등 시간으로 계산되는 값은 저장하지 않는다 (bornAt 기준 계산).
+ * 별 개수, 별자리, D-day 등 시간으로 계산되는 값은 저장하지 않는다 (startDate 기준 계산, common.GalaxyDates).
  */
 public final class FirestoreSchema {
 
@@ -42,6 +44,7 @@ public final class FirestoreSchema {
     public static final String GALAXY_CREATED_AT = "createdAt";
     public static final String GALAXY_BORN_AT = "bornAt";
     public static final String GALAXY_UNLINKED_AT = "unlinkedAt";
+    public static final String GALAXY_START_DATE = "startDate";
 
     // inviteCodes 필드
     public static final String CODE_GALAXY_ID = "galaxyId";

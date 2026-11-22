@@ -12,6 +12,7 @@ import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 
 import com.example.starring.R;
 import com.example.starring.common.ErrorMessages;
@@ -22,6 +23,11 @@ import com.example.starring.data.FirestoreSchema.GalaxyStatus;
 import com.example.starring.data.GalaxyRepository;
 import com.example.starring.data.UserRepository;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.datepicker.CalendarConstraints;
+import com.google.android.material.datepicker.CompositeDateValidator;
+import com.google.android.material.datepicker.DateValidatorPointBackward;
+import com.google.android.material.datepicker.DateValidatorPointForward;
+import com.google.android.material.datepicker.MaterialDatePicker;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -32,6 +38,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -39,7 +46,7 @@ import java.util.Locale;
 /**
  * 커플 연동 화면. 은하계 상태에 따라 패널을 바꿔 보여준다.
  *
- *  CHOOSE  : 은하계 없음 → "새 은하계 만들기" 또는 "초대코드로 합류"
+ *  CHOOSE  : 은하계 없음 → "새 은하계 만들기"(만난 날 선택 후 생성) 또는 "초대코드로 합류"
  *  WAITING : 내가 만든 은하계에서 상대 대기 (코드 표시, 실시간 감지)
  *  NAMING  : 두 명이 모임 → 은하계 이름 설정 (먼저 저장한 사람의 이름 적용)
  *  ACTIVE  → 메인 화면으로 이동
@@ -49,6 +56,8 @@ import java.util.Locale;
 public class CoupleLinkActivity extends AppCompatActivity {
 
     private enum Panel { LOADING, CHOOSE, WAITING, NAMING }
+
+    private static final String TAG_START_DATE_PICKER = "startDatePicker";
 
     private final UserRepository userRepository = new UserRepository();
     private final GalaxyRepository galaxyRepository = new GalaxyRepository();
@@ -118,7 +127,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
         btnSaveName = findViewById(R.id.btnSaveName);
         btnUnlinkNaming = findViewById(R.id.btnUnlinkNaming);
 
-        btnCreate.setOnClickListener(v -> createGalaxy());
+        btnCreate.setOnClickListener(v -> pickStartDateThenCreate());
         btnJoin.setOnClickListener(v -> joinGalaxy());
         btnCopyCode.setOnClickListener(v -> copyCode());
         btnShareCode.setOnClickListener(v -> shareCode());
@@ -132,6 +141,12 @@ public class CoupleLinkActivity extends AppCompatActivity {
             FirebaseAuth.getInstance().signOut();
             Navigator.toLogin(this);
         });
+
+        // 화면 회전 등으로 다시 만들어진 날짜 선택기에 리스너 재연결 (리스너는 보존되지 않음)
+        Fragment picker = getSupportFragmentManager().findFragmentByTag(TAG_START_DATE_PICKER);
+        if (picker instanceof MaterialDatePicker) {
+            attachStartDateListener((MaterialDatePicker<?>) picker);
+        }
     }
 
     @Override
@@ -259,10 +274,59 @@ public class CoupleLinkActivity extends AppCompatActivity {
 
     // ───────────────────────── CHOOSE ─────────────────────────
 
-    private void createGalaxy() {
+    /**
+     * 만난 날 선택 → 은하계 생성. 은하계를 만드는 사람만 입력한다 (합류하는 사람은 코드만).
+     *
+     * ⚠ 임시 UI: 팀 UI 기획에서는 "은하계 만들기" 한 화면에서 닉네임 / 만난 날 / 은하계 이름을
+     *   함께 입력받는다. 지금은 기존 흐름(닉네임=회원가입, 이름=NAMING 단계)을 유지하고
+     *   만난 날만 다이얼로그로 받는다. 팀 UI 적용 시 이 다이얼로그를 그 화면의 입력 칸으로 통합할 것
+     *   (검증은 StartDatePolicy, 저장은 GalaxyRepository.createGalaxy 그대로 사용).
+     */
+    private void pickStartDateThenCreate() {
         clearError();
+        if (busy || getSupportFragmentManager().findFragmentByTag(TAG_START_DATE_PICKER) != null) {
+            return;
+        }
+        // 기기 시간대 기준 "오늘"을 UTC 00:00으로 표현한 값.
+        // DateValidatorPointBackward.now()는 KST 오전 9시 전에 오늘을 막아버려서 before(today)를 쓴다.
+        long todayUtc = MaterialDatePicker.todayInUtcMilliseconds();
+        List<CalendarConstraints.DateValidator> validators = new ArrayList<>();
+        validators.add(DateValidatorPointForward.from(StartDatePolicy.MIN_UTC_MILLIS));
+        validators.add(DateValidatorPointBackward.before(todayUtc));
+
+        CalendarConstraints constraints = new CalendarConstraints.Builder()
+                .setStart(StartDatePolicy.MIN_UTC_MILLIS)
+                .setEnd(todayUtc)
+                .setOpenAt(todayUtc)
+                .setValidator(CompositeDateValidator.allOf(validators))
+                .build();
+
+        MaterialDatePicker<Long> picker = MaterialDatePicker.Builder.datePicker()
+                .setTitleText(R.string.start_date_picker_title)
+                .setCalendarConstraints(constraints)
+                .build();
+        attachStartDateListener(picker);
+        picker.show(getSupportFragmentManager(), TAG_START_DATE_PICKER);
+    }
+
+    private void attachStartDateListener(MaterialDatePicker<?> picker) {
+        picker.addOnPositiveButtonClickListener(selection -> {
+            if (selection instanceof Long) {
+                createGalaxy((Long) selection);
+            }
+        });
+    }
+
+    /** @param startDateUtcMillis 날짜 선택기 값 (선택한 날짜의 UTC 00:00) */
+    private void createGalaxy(long startDateUtcMillis) {
+        clearError();
+        // 기기 시간은 상한 확인 편의용으로만 사용 (최종 판단은 rules의 request.time)
+        if (!StartDatePolicy.isValid(startDateUtcMillis, System.currentTimeMillis())) {
+            showError(getString(R.string.start_date_invalid));
+            return;
+        }
         setBusy(true);
-        galaxyRepository.createGalaxy(uid)
+        galaxyRepository.createGalaxy(uid, new Timestamp(new Date(startDateUtcMillis)))
                 .addOnSuccessListener(this, gid -> {
                     setBusy(false);
                     watch(gid);

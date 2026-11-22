@@ -1,10 +1,11 @@
 rules_version = '2';
 
-// StarRing Firestore 보안 규칙 초안
-// ⚠ 아직 콘솔에 적용하지 않음 — 팀원과 상의 후 적용할 것.
+// StarRing Firestore 보안 규칙
+// 이 파일이 원본. Firebase 콘솔에는 수동 배포 (수정하면 콘솔에도 반영할 것).
 //   메인 화면/블랙홀/행성 등 다른 컬렉션 규칙은 각 담당자가 아래에 추가.
 //
 // 구조: users/{uid}, galaxies/{galaxyId}, inviteCodes/{code}
+// galaxies.startDate = 만난 날 (UTC 00:00 Timestamp, 현재 선택 필드)
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -23,6 +24,18 @@ service cloud.firestore {
     // 변경된 필드가 허용 목록 안에만 있는지
     function onlyChanges(keys) {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    // 만난 날(startDate) 값 검증. 앱의 StartDatePolicy와 같은 기준.
+    //  - 날짜만 의미 있으므로 UTC 00:00 값만 허용 (d == d.date())
+    //  - 하한 1950-01-01 (오타 방지)
+    //  - 상한 "오늘": 사용자 시간대의 오늘을 UTC 00:00으로 저장하므로
+    //    KST 오전 9시 전에는 서버 시각보다 미래가 된다 → request.time + 1일까지 허용
+    function validStartDate(d) {
+      return d is timestamp
+        && d == d.date()
+        && d >= timestamp.date(1950, 1, 1)
+        && d <= request.time + duration.value(1, 'd');
     }
 
     // 초대코드 유효기간 (생성 후 24시간). 기간을 바꾸려면 여기만 수정.
@@ -76,7 +89,12 @@ service cloud.firestore {
       allow list: if signedIn() && request.auth.uid in resource.data.memberUids;
 
       // 생성: 만든 사람 혼자, waiting 상태로만
+      // startDate(만난 날)는 현재 "선택": 있으면 유효해야 함.
+      //   구버전 앱(startDate 없이 생성)을 쓰는 팀원이 깨지지 않도록 필수로 두지 않음.
+      //   없으면 앱이 bornAt 날짜로 대체 계산 (GalaxyDates.effectiveStart).
+      //   TODO: 팀 전체가 새 빌드로 넘어가면 아래 줄을 validStartDate(request.resource.data.startDate)로 바꿔 필수화.
       allow create: if signedIn()
+        && (!('startDate' in request.resource.data) || validStartDate(request.resource.data.startDate))
         && request.resource.data.ownerUid == request.auth.uid
         && request.resource.data.memberUids == [request.auth.uid]
         && request.resource.data.status == 'waiting'
@@ -126,6 +144,15 @@ service cloud.firestore {
         && request.resource.data.status == 'unlinked'
         && request.resource.data.unlinkedAt == request.time
         && onlyChanges(['status', 'unlinkedAt']);
+
+      // 5) 만난 날 수정: 연동된(naming/active) 은하계의 멤버 누구나, startDate만.
+      //    startDate가 없던 기존 은하계에 처음 넣는 것도 이 규칙으로 허용.
+      //    (수정 UI는 메뉴바 "내 정보" — GalaxyRepository.updateStartDate 사용)
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.memberUids
+        && resource.data.status in ['naming', 'active']
+        && validStartDate(request.resource.data.startDate)
+        && onlyChanges(['startDate']);
 
       // 대기 취소: 만든 사람이 waiting 상태에서만 삭제
       allow delete: if signedIn()
