@@ -2,7 +2,7 @@ rules_version = '2';
 
 // StarRing Firestore 보안 규칙
 // 이 파일이 원본. Firebase 콘솔에는 수동 배포 (수정하면 콘솔에도 반영할 것).
-//   메인 화면/블랙홀/행성 등 다른 컬렉션 규칙은 각 담당자가 아래에 추가.
+//   메인 화면/블랙홀/행성 등 다른 컬렉션 규칙은 각 담당자가 아래에 추가 (맨 아래 임시 허용 블록은 그때 삭제).
 //
 // 구조: users/{uid}, galaxies/{galaxyId}, inviteCodes/{code}
 // galaxies.startDate = 만난 날 (UTC 00:00 Timestamp, 현재 선택 필드)
@@ -184,6 +184,31 @@ service cloud.firestore {
         request.auth.uid == resource.data.ownerUid ||
         getAfter(galaxyPath(resource.data.galaxyId)).data.inviteCode != code
       );
+    }
+
+    // ───────────────────────── 임시 허용 (팀원 담당 컬렉션) ─────────────────────────
+    // ⚠ 임시 규칙: 각 담당자가 규칙을 추가하면 삭제할 것.
+    //   로그인 사용자면 누구나 읽기/쓰기 가능 (하위 컬렉션 포함) → 실제 서비스 전에 반드시 교체.
+    match /planets/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /blackholes/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /trials/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /messages/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    // Auth/Firestore 연결 테스트용 (문서 ID = uid). 자기 문서만.
+    // ⚠ 임시 규칙: 테스트 화면을 없애면 삭제할 것.
+    match /connection_tests/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
     }
   }
 }
