@@ -47,13 +47,13 @@ public class GalaxyActivity extends Activity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    // 연애 시작일 (테스트용)
-    private static final int START_YEAR = 2026;
-    private static final int START_MONTH = 11;
-    private static final int START_DAY = 19;
+    // Firebase에서 전달받는 실제 연애 시작일
+    private int startYear = 2026;
+    private int startMonth = 11;
+    private int startDay = 19;
 
-    // 기존 테스트 날짜에 맞춰 변경 가능
-    private static final int TEST_ADD_DAYS = 300;
+    // 정식 실행 시 날짜를 임의로 추가하지 않음
+    private static final int TEST_ADD_DAYS = 0;
 
     // 행성 메뉴 이름
     private static final String[] MENU_NAMES = {
@@ -95,6 +95,21 @@ public class GalaxyActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_galaxy);
+
+        // 은하계 로딩 화면에서 받은 만난 날짜
+        String startDate = getIntent().getStringExtra(
+                GalaxyLoadingActivity.EXTRA_START_DATE
+        );
+
+        if (startDate != null
+                && startDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+
+            String[] parts = startDate.split("-");
+
+            startYear = Integer.parseInt(parts[0]);
+            startMonth = Integer.parseInt(parts[1]);
+            startDay = Integer.parseInt(parts[2]);
+        }
 
         // 기존 은하계
         galaxyBackground =
@@ -471,9 +486,9 @@ public class GalaxyActivity extends Activity {
         );
 
         Calendar start = makeDate(
-                START_YEAR,
-                START_MONTH,
-                START_DAY
+                startYear,
+                startMonth,
+                startDay
         );
 
         // 경과 일수

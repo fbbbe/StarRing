@@ -94,6 +94,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
     private boolean autoReissueTried;
     /** 내가 취소/해제하는 중 → "상대가 해제했어요" 안내를 띄우지 않기 위함 */
     private boolean selfLeaving;
+    private boolean activationInFlight = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -127,7 +128,9 @@ public class CoupleLinkActivity extends AppCompatActivity {
         btnSaveName = findViewById(R.id.btnSaveName);
         btnUnlinkNaming = findViewById(R.id.btnUnlinkNaming);
 
-        btnCreate.setOnClickListener(v -> pickStartDateThenCreate());
+        btnCreate.setOnClickListener(
+                v -> Navigator.toGalaxySetup(this)
+        );
         btnJoin.setOnClickListener(v -> joinGalaxy());
         btnCopyCode.setOnClickListener(v -> copyCode());
         btnShareCode.setOnClickListener(v -> shareCode());
@@ -248,7 +251,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
         if (GalaxyStatus.WAITING.equals(status)) {
             showWaiting(galaxy.getString(FirestoreSchema.GALAXY_INVITE_CODE));
         } else if (GalaxyStatus.NAMING.equals(status)) {
-            showNaming(galaxy);
+            activateAfterLink();
         } else if (GalaxyStatus.ACTIVE.equals(status)) {
             goMain();
         } else if (GalaxyStatus.UNLINKED.equals(status)) {
@@ -274,68 +277,6 @@ public class CoupleLinkActivity extends AppCompatActivity {
 
     // ───────────────────────── CHOOSE ─────────────────────────
 
-    /**
-     * 만난 날 선택 → 은하계 생성. 은하계를 만드는 사람만 입력한다 (합류하는 사람은 코드만).
-     *
-     * ⚠ 임시 UI: 팀 UI 기획에서는 "은하계 만들기" 한 화면에서 닉네임 / 만난 날 / 은하계 이름을
-     *   함께 입력받는다. 지금은 기존 흐름(닉네임=회원가입, 이름=NAMING 단계)을 유지하고
-     *   만난 날만 다이얼로그로 받는다. 팀 UI 적용 시 이 다이얼로그를 그 화면의 입력 칸으로 통합할 것
-     *   (검증은 StartDatePolicy, 저장은 GalaxyRepository.createGalaxy 그대로 사용).
-     */
-    private void pickStartDateThenCreate() {
-        clearError();
-        if (busy || getSupportFragmentManager().findFragmentByTag(TAG_START_DATE_PICKER) != null) {
-            return;
-        }
-        // 기기 시간대 기준 "오늘"을 UTC 00:00으로 표현한 값.
-        // DateValidatorPointBackward.now()는 KST 오전 9시 전에 오늘을 막아버려서 before(today)를 쓴다.
-        long todayUtc = MaterialDatePicker.todayInUtcMilliseconds();
-        List<CalendarConstraints.DateValidator> validators = new ArrayList<>();
-        validators.add(DateValidatorPointForward.from(StartDatePolicy.MIN_UTC_MILLIS));
-        validators.add(DateValidatorPointBackward.before(todayUtc));
-
-        CalendarConstraints constraints = new CalendarConstraints.Builder()
-                .setStart(StartDatePolicy.MIN_UTC_MILLIS)
-                .setEnd(todayUtc)
-                .setOpenAt(todayUtc)
-                .setValidator(CompositeDateValidator.allOf(validators))
-                .build();
-
-        MaterialDatePicker<Long> picker = MaterialDatePicker.Builder.datePicker()
-                .setTitleText(R.string.start_date_picker_title)
-                .setCalendarConstraints(constraints)
-                .build();
-        attachStartDateListener(picker);
-        picker.show(getSupportFragmentManager(), TAG_START_DATE_PICKER);
-    }
-
-    private void attachStartDateListener(MaterialDatePicker<?> picker) {
-        picker.addOnPositiveButtonClickListener(selection -> {
-            if (selection instanceof Long) {
-                createGalaxy((Long) selection);
-            }
-        });
-    }
-
-    /** @param startDateUtcMillis 날짜 선택기 값 (선택한 날짜의 UTC 00:00) */
-    private void createGalaxy(long startDateUtcMillis) {
-        clearError();
-        // 기기 시간은 상한 확인 편의용으로만 사용 (최종 판단은 rules의 request.time)
-        if (!StartDatePolicy.isValid(startDateUtcMillis, System.currentTimeMillis())) {
-            showError(getString(R.string.start_date_invalid));
-            return;
-        }
-        setBusy(true);
-        galaxyRepository.createGalaxy(uid, new Timestamp(new Date(startDateUtcMillis)))
-                .addOnSuccessListener(this, gid -> {
-                    setBusy(false);
-                    watch(gid);
-                })
-                .addOnFailureListener(this, e -> {
-                    setBusy(false);
-                    showError(ErrorMessages.toMessage(e));
-                });
-    }
 
     private void joinGalaxy() {
         clearError();
@@ -583,4 +524,43 @@ public class CoupleLinkActivity extends AppCompatActivity {
     private static String text(TextInputEditText edit) {
         return edit.getText() == null ? "" : edit.getText().toString();
     }
+
+
+    private void activateAfterLink() {
+
+        if (activationInFlight
+                || galaxyId == null
+                || uid == null
+                || leaving) {
+            return;
+        }
+
+        activationInFlight = true;
+
+        // 이름을 다시 입력하지 않고 활성화 처리
+        show(Panel.LOADING);
+
+        galaxyRepository.activateGalaxy(uid, galaxyId)
+                .addOnSuccessListener(this, unused -> {
+                    activationInFlight = false;
+
+                    // active 상태 감지 후
+                    // 기존 render()가 goMain() 실행
+                })
+                .addOnFailureListener(this, e -> {
+
+                    activationInFlight = false;
+
+                    show(Panel.NAMING);
+
+                    // 기존 이름 설정 버튼을 재시도용으로 활용
+                    btnSaveName.setText("다시 시도");
+                    btnSaveName.setOnClickListener(
+                            v -> activateAfterLink()
+                    );
+
+                    showError(ErrorMessages.toMessage(e));
+                });
+    }
+
 }

@@ -78,7 +78,7 @@ public class MainActivity extends AppCompatActivity {
                     }
                     String galaxyId = userDoc.getString(FirestoreSchema.USER_GALAXY_ID);
                     if (galaxyId == null) {
-                        Navigator.toCoupleLink(this);
+                        Navigator.toGalaxySetup(this);
                     } else {
                         checkGalaxy(user.getUid(), galaxyId);
                     }

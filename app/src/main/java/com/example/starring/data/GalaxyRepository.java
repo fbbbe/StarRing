@@ -66,64 +66,150 @@ public class GalaxyRepository {
 
     // ───────────────────────── 생성 ─────────────────────────
 
+    /** 새 은하계(waiting) + 초대코드 발급. 성공하면 galaxyId 반환. */
+
     /**
-     * 새 은하계(waiting) + 초대코드 발급. 성공하면 galaxyId 반환.
-     * @param startDate 만난 날 (UTC 00:00, StartDatePolicy로 검증된 값). 만든 사람만 입력한다.
+     * 날짜와 이름 설정 후 새 은하계 생성.
+     * waiting 상태에서 초대코드 발급.
      */
-    public Task<String> createGalaxy(String uid, Timestamp startDate) {
-        return createGalaxyAttempt(uid, startDate, 1);
+    public Task<String> createGalaxy(
+            String uid,
+            String galaxyName,
+            String datingStartDate) {
+
+        if (galaxyName == null
+                || galaxyName.trim().isEmpty()
+                || datingStartDate == null
+                || !datingStartDate.matches(
+                "\\d{4}-\\d{2}-\\d{2}")) {
+
+            return Tasks.forException(
+                    new IllegalArgumentException(
+                            "은하계 이름과 만난 날짜를 확인해주세요."
+                    )
+            );
+        }
+
+        return createGalaxyAttempt(
+                uid, galaxyName.trim(), datingStartDate, 1
+        );
     }
 
-    private Task<String> createGalaxyAttempt(String uid, Timestamp startDate, int attempt) {
+    private Task<String> createGalaxyAttempt(
+            String uid,
+            String galaxyName,
+            String datingStartDate,
+            int attempt) {
+
         final String code = InviteCode.generate();
-        final DocumentReference galaxyRef = db.collection(FirestoreSchema.GALAXIES).document();
-        final DocumentReference codeRef = inviteCodeRef(code);
-        final DocumentReference userRef = userRef(uid);
+
+        final DocumentReference galaxyRef =
+                db.collection(FirestoreSchema.GALAXIES).document();
+
+        final DocumentReference codeRef =
+                inviteCodeRef(code);
+
+        final DocumentReference userRef =
+                userRef(uid);
 
         Task<String> task = db.runTransaction(tx -> {
-            // 읽기 (트랜잭션은 모든 읽기가 쓰기보다 먼저)
+
             DocumentSnapshot user = tx.get(userRef);
             DocumentSnapshot existingCode = tx.get(codeRef);
 
             if (!user.exists()) {
-                throw new CoupleLinkException(Reason.USER_NOT_FOUND);
+                throw new CoupleLinkException(
+                        Reason.USER_NOT_FOUND
+                );
             }
-            if (user.getString(FirestoreSchema.USER_GALAXY_ID) != null) {
-                throw new CoupleLinkException(Reason.ALREADY_IN_GALAXY);
+
+            if (user.getString(
+                    FirestoreSchema.USER_GALAXY_ID) != null) {
+
+                throw new CoupleLinkException(
+                        Reason.ALREADY_IN_GALAXY
+                );
             }
+
             if (existingCode.exists()) {
-                throw new CoupleLinkException(Reason.CODE_COLLISION);
+                throw new CoupleLinkException(
+                        Reason.CODE_COLLISION
+                );
             }
 
             List<String> members = new ArrayList<>();
             members.add(uid);
 
             Map<String, Object> galaxy = new HashMap<>();
-            galaxy.put(FirestoreSchema.GALAXY_OWNER_UID, uid);
-            galaxy.put(FirestoreSchema.GALAXY_MEMBER_UIDS, members);
-            galaxy.put(FirestoreSchema.GALAXY_INVITE_CODE, code);
-            galaxy.put(FirestoreSchema.GALAXY_STATUS, GalaxyStatus.WAITING);
-            galaxy.put(FirestoreSchema.GALAXY_NAME, null);
-            galaxy.put(FirestoreSchema.GALAXY_CREATED_AT, FieldValue.serverTimestamp());
-            galaxy.put(FirestoreSchema.GALAXY_BORN_AT, null);
-            galaxy.put(FirestoreSchema.GALAXY_UNLINKED_AT, null);
-            galaxy.put(FirestoreSchema.GALAXY_START_DATE, startDate);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_OWNER_UID, uid);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_MEMBER_UIDS, members);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_INVITE_CODE, code);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_STATUS,
+                    GalaxyStatus.WAITING);
+
+            // 연동 전에 결정한 은하계 정보
+            galaxy.put(
+                    FirestoreSchema.GALAXY_NAME,
+                    galaxyName);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_DATING_START_DATE,
+                    datingStartDate);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_CREATED_AT,
+                    FieldValue.serverTimestamp());
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_BORN_AT, null);
+
+            galaxy.put(
+                    FirestoreSchema.GALAXY_UNLINKED_AT, null);
 
             tx.set(galaxyRef, galaxy);
-            tx.set(codeRef, inviteCodeData(galaxyRef.getId(), uid));
-            tx.update(userRef, FirestoreSchema.USER_GALAXY_ID, galaxyRef.getId());
+
+            tx.set(
+                    codeRef,
+                    inviteCodeData(galaxyRef.getId(), uid)
+            );
+
+            tx.update(
+                    userRef,
+                    FirestoreSchema.USER_GALAXY_ID,
+                    galaxyRef.getId()
+            );
+
             return galaxyRef.getId();
         });
 
         return task.continueWithTask(t -> {
+
             if (!t.isSuccessful()
-                    && CoupleLinkException.is(t.getException(), Reason.CODE_COLLISION)
+                    && CoupleLinkException.is(
+                    t.getException(),
+                    Reason.CODE_COLLISION)
                     && attempt < MAX_CODE_ATTEMPTS) {
-                return createGalaxyAttempt(uid, startDate, attempt + 1);
+
+                return createGalaxyAttempt(
+                        uid,
+                        galaxyName,
+                        datingStartDate,
+                        attempt + 1
+                );
             }
+
             return t;
         });
     }
+
 
     // ───────────────────────── 합류 ─────────────────────────
 
@@ -384,4 +470,116 @@ public class GalaxyRepository {
         }
         return false;
     }
+
+
+    /**
+     * 두 명 연동 완료 후 은하계를 활성화.
+     * 이름과 시작일은 이미 저장되어 있어야 함.
+     */
+    public Task<Void> activateGalaxy(
+            String uid, String galaxyId) {
+
+        final DocumentReference ref =
+                galaxyRef(galaxyId);
+
+        return db.runTransaction(tx -> {
+
+            DocumentSnapshot galaxy = tx.get(ref);
+
+            if (!galaxy.exists()) {
+                throw new CoupleLinkException(
+                        Reason.INVALID_CODE
+                );
+            }
+
+            String status = galaxy.getString(
+                    FirestoreSchema.GALAXY_STATUS
+            );
+
+            // 이미 활성화됐다면 중복 실행하지 않음
+            if (GalaxyStatus.ACTIVE.equals(status)) {
+                return null;
+            }
+
+            if (!GalaxyStatus.NAMING.equals(status)
+                    || !memberUids(galaxy).contains(uid)
+                    || memberUids(galaxy).size() != 2) {
+
+                throw new CoupleLinkException(
+                        Reason.NOT_NAMING
+                );
+            }
+
+            String name = galaxy.getString(
+                    FirestoreSchema.GALAXY_NAME
+            );
+
+            String startDate = galaxy.getString(
+                    FirestoreSchema.GALAXY_DATING_START_DATE
+            );
+
+            if (name == null || name.trim().isEmpty()
+                    || startDate == null
+                    || startDate.trim().isEmpty()) {
+
+                throw new IllegalStateException(
+                        "은하계 설정 정보가 없습니다."
+                );
+            }
+
+            tx.update(
+                    ref,
+                    FirestoreSchema.GALAXY_STATUS,
+                    GalaxyStatus.ACTIVE,
+                    FirestoreSchema.GALAXY_BORN_AT,
+                    FieldValue.serverTimestamp()
+            );
+
+            return null;
+        });
+    }
+
+
+    public Task<Void> setDatingStartDateForExistingGalaxy(
+            String uid,
+            String galaxyId,
+            String datingStartDate) {
+
+        final DocumentReference ref = galaxyRef(galaxyId);
+
+        return db.runTransaction(tx -> {
+
+            DocumentSnapshot galaxy = tx.get(ref);
+
+            if (!galaxy.exists()
+                    || !GalaxyStatus.ACTIVE.equals(
+                    galaxy.getString(
+                            FirestoreSchema.GALAXY_STATUS))
+                    || !memberUids(galaxy).contains(uid)) {
+
+                throw new IllegalStateException(
+                        "활성화된 은하계를 찾을 수 없습니다."
+                );
+            }
+
+            String existing = galaxy.getString(
+                    FirestoreSchema.GALAXY_DATING_START_DATE
+            );
+
+            // 다른 사용자가 이미 저장했으면 덮어쓰지 않음
+            if (existing != null && !existing.isEmpty()) {
+                return null;
+            }
+
+            tx.update(
+                    ref,
+                    FirestoreSchema.GALAXY_DATING_START_DATE,
+                    datingStartDate
+            );
+
+            return null;
+        });
+    }
+
 }
+
