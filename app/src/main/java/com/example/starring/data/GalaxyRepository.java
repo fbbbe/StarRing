@@ -3,9 +3,11 @@ package com.example.starring.data;
 import com.example.starring.couple.CoupleLinkException;
 import com.example.starring.couple.CoupleLinkException.Reason;
 import com.example.starring.couple.InviteCode;
+import com.example.starring.couple.StartDatePolicy;
 import com.example.starring.data.FirestoreSchema.GalaxyStatus;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -371,6 +373,36 @@ public class GalaxyRepository {
                     FirestoreSchema.GALAXY_NAME, name,
                     FirestoreSchema.GALAXY_STATUS, GalaxyStatus.ACTIVE,
                     FirestoreSchema.GALAXY_BORN_AT, FieldValue.serverTimestamp());
+            return null;
+        });
+    }
+
+    // ───────────────────────── 만난 날 수정 ─────────────────────────
+
+    /**
+     * 만난 날 수정. 연동된(naming/active) 은하계의 멤버 누구나 가능.
+     * 수정 UI는 메뉴바 "내 정보"(팀원 담당)에서 이 메서드를 호출하면 된다.
+     * startDate가 없는 기존 은하계에 처음 넣는 것도 이 메서드로 처리.
+     * 권한·값 검증은 firestore.rules(5번 규칙 + validStartDate)가 최종 판단.
+     *
+     * @param startDate 만난 날 (UTC 00:00). 호출 전에 StartDatePolicy.isValid로 확인할 것.
+     */
+    public Task<Void> updateStartDate(String uid, String galaxyId, Timestamp startDate) {
+        // 기기 시간은 상한 확인 편의용으로만 사용 (최종 판단은 rules의 request.time)
+        if (startDate == null
+                || !StartDatePolicy.isValid(startDate.toDate().getTime(), System.currentTimeMillis())) {
+            return Tasks.forException(new CoupleLinkException(Reason.INVALID_START_DATE));
+        }
+        final DocumentReference galaxyRef = galaxyRef(galaxyId);
+
+        return db.runTransaction(tx -> {
+            DocumentSnapshot galaxy = tx.get(galaxyRef);
+            String status = galaxy.getString(FirestoreSchema.GALAXY_STATUS);
+            boolean linked = GalaxyStatus.NAMING.equals(status) || GalaxyStatus.ACTIVE.equals(status);
+            if (!galaxy.exists() || !linked || !memberUids(galaxy).contains(uid)) {
+                throw new CoupleLinkException(Reason.NOT_LINKED);
+            }
+            tx.update(galaxyRef, FirestoreSchema.GALAXY_START_DATE, startDate);
             return null;
         });
     }

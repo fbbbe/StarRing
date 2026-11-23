@@ -910,5 +910,30 @@ service cloud.firestore {
         allow update, delete: if false;
       }
     }
+
+    // ───────────────────────── 임시 허용 (팀원 담당 컬렉션) ─────────────────────────
+    // ⚠ 임시 규칙: 각 담당자가 규칙을 추가하면 삭제할 것.
+    //   로그인 사용자면 누구나 읽기/쓰기 가능 (하위 컬렉션 포함) → 실제 서비스 전에 반드시 교체.
+    match /planets/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /blackholes/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /trials/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    match /messages/{document=**} {
+      allow read, write: if signedIn();
+    }
+
+    // Auth/Firestore 연결 테스트용 (문서 ID = uid). 자기 문서만.
+    // ⚠ 임시 규칙: 테스트 화면을 없애면 삭제할 것.
+    match /connection_tests/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
   }
 }
