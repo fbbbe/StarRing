@@ -1,154 +1,984 @@
+
 package com.example.starring.court;
+
+import android.util.Log;
+
+import com.google.android.gms.tasks.Task;
+import com.google.android.gms.tasks.Tasks;
+import com.google.firebase.Timestamp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-/**
- * 우주 재판장 데이터 저장소 (임시: 메모리 더미 데이터).
- *
- * DB(Firestore)가 정해지면 이 클래스 안쪽만 바꾸고,
- * 화면(Activity)들은 이 클래스의 메서드만 쓰도록 만들어 둠.
- * 앱을 껐다 켜면 데이터가 초기화됨.
- */
 public final class CourtRepository {
 
-    private static final long HOUR = 3600000L;
-    private static final List<CourtPost> POSTS = new ArrayList<>();
+    private static final String TAG = "CourtRepository";
+    private static final String COLLECTION = "courtPosts";
 
-    static {
-        long now = System.currentTimeMillis();
+    private static final long VOTE_DURATION =
+            24L * 60L * 60L * 1000L;
 
-        POSTS.add(new CourtPost(
-                "dummy-1",
-                "카톡 답장 지연",
-                "약속 장소로 가는 동안 두 시간 동안 답장이 없었어요.",
-                "바빠서 확인을 못 했을 뿐이라 서운해할 일은 아니에요.",
-                "연락이 안 되면 걱정되니까 짧게라도 답장해 주면 좋겠어요.",
-                "별빛은하계",
-                40, 60,
-                now - 2 * HOUR,
-                now + 5 * HOUR));
+    private static final FirebaseFirestore db =
+            FirebaseFirestore.getInstance();
 
-        POSTS.add(new CourtPost(
-                "dummy-2",
-                "약속 시간 지각",
-                "약속 시간에 30분 늦게 도착했어요.",
-                "교통 상황 때문이라 어쩔 수 없었어요.",
-                "미리 연락을 줬다면 기다리는 시간이 덜 힘들었을 거예요.",
-                "달빛은하계",
-                25, 75,
-                now - 1 * HOUR,
-                now + 2 * HOUR));
-    }
+    // Firestore에서 받아온 데이터 캐시
+    private static final Map<String, CourtPost> POSTS =
+            new HashMap<>();
+
+    private static final Map<String, CourtPost> MY_POSTS =
+            new HashMap<>();
+
+    private static final List<Runnable> observers =
+            new ArrayList<>();
+
+    private static ListenerRegistration postsListener;
+    private static ListenerRegistration userListener;
+    private static ListenerRegistration myPostsListener;
+
+    private static String currentUid;
+    private static String currentGalaxyId;
 
     private CourtRepository() {
     }
 
-    // latestFirst = true : 최신순 / false : 마감임박순
-    public static synchronized List<CourtPost> getPosts(boolean latestFirst) {
-        List<CourtPost> copy = new ArrayList<>(POSTS);
-        if (latestFirst) {
-            Collections.sort(copy, new Comparator<CourtPost>() {
-                @Override
-                public int compare(CourtPost a, CourtPost b) {
-                    return Long.compare(b.createdAt, a.createdAt);
-                }
-            });
-        } else {
-            Collections.sort(copy, new Comparator<CourtPost>() {
-                @Override
-                public int compare(CourtPost a, CourtPost b) {
-                    return Long.compare(a.deadlineAt, b.deadlineAt);
-                }
-            });
+    // ==========================================
+    // 로그인 사용자 확인
+    // ==========================================
+
+    private static FirebaseUser requireUser() {
+        FirebaseUser user =
+                FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            throw new IllegalStateException(
+                    "로그인이 필요합니다."
+            );
         }
-        return copy;
+
+        return user;
     }
 
-    // 내가 올린 블랙홀 목록 (resolved = false: 진행 중 / true: 화해 완료), 최신순
-    // TODO(DB 연동 후): mine 대신 작성자 커플 식별값으로 조회
-    public static synchronized List<CourtPost> getMyPosts(boolean resolved) {
-        List<CourtPost> result = new ArrayList<>();
-        for (CourtPost post : POSTS) {
-            if (post.mine && post.isResolved() == resolved) {
-                result.add(post);
-            }
+    private static DocumentReference postRef(String id) {
+        return db.collection(COLLECTION).document(id);
+    }
+
+    // ==========================================
+    // Firestore 실시간 조회 시작
+    // ==========================================
+
+    private static synchronized void ensureListening() {
+
+        FirebaseUser user =
+                FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            stopListening();
+            return;
         }
-        Collections.sort(result, new Comparator<CourtPost>() {
-            @Override
-            public int compare(CourtPost a, CourtPost b) {
-                return Long.compare(b.createdAt, a.createdAt);
-            }
-        });
+
+        String uid = user.getUid();
+
+        if (uid.equals(currentUid)
+                && postsListener != null) {
+            return;
+        }
+
+        stopListening();
+
+        currentUid = uid;
+
+        // 전체 재판 목록 조회
+        postsListener = db.collection(COLLECTION)
+                .orderBy(
+                        "createdAt",
+                        Query.Direction.DESCENDING
+                )
+                .limit(50)
+                .addSnapshotListener((snapshot, error) -> {
+
+                    if (error != null) {
+                        Log.e(TAG,
+                                "재판 목록 조회 실패",
+                                error);
+                        return;
+                    }
+
+                    if (snapshot == null) {
+                        return;
+                    }
+
+                    synchronized (CourtRepository.class) {
+                        POSTS.clear();
+
+                        for (DocumentSnapshot doc :
+                                snapshot.getDocuments()) {
+
+                            CourtPost post = fromDocument(doc);
+                            POSTS.put(post.id, post);
+                        }
+                    }
+
+                    notifyObservers();
+                });
+
+        // 현재 사용자의 은하계 ID 실시간 확인
+        userListener = db.collection("users")
+                .document(uid)
+                .addSnapshotListener((snapshot, error) -> {
+
+                    if (error != null || snapshot == null) {
+                        return;
+                    }
+
+                    if (!uid.equals(currentUid)) {
+                        return;
+                    }
+
+                    String galaxyId =
+                            snapshot.getString("galaxyId");
+
+                    if (galaxyId == null
+                            ? currentGalaxyId == null
+                            : galaxyId.equals(currentGalaxyId)) {
+                        return;
+                    }
+
+                    currentGalaxyId = galaxyId;
+
+                    if (myPostsListener != null) {
+                        myPostsListener.remove();
+                        myPostsListener = null;
+                    }
+
+                    MY_POSTS.clear();
+
+                    if (galaxyId == null) {
+                        notifyObservers();
+                        return;
+                    }
+
+                    // 현재 커플이 생성한 블랙홀 조회
+                    myPostsListener = db.collection(COLLECTION)
+                            .whereEqualTo(
+                                    "galaxyId",
+                                    galaxyId
+                            )
+                            .limit(50)
+                            .addSnapshotListener(
+                                    (postsSnapshot, e) -> {
+
+                                        if (e != null) {
+                                            Log.e(TAG,
+                                                    "내 블랙홀 조회 실패",
+                                                    e);
+                                            return;
+                                        }
+
+                                        if (postsSnapshot == null) {
+                                            return;
+                                        }
+
+                                        synchronized (
+                                                CourtRepository.class) {
+
+                                            MY_POSTS.clear();
+
+                                            for (DocumentSnapshot doc :
+                                                    postsSnapshot.getDocuments()) {
+
+                                                CourtPost post =
+                                                        fromDocument(doc);
+
+                                                post.mine = true;
+                                                MY_POSTS.put(
+                                                        post.id, post
+                                                );
+                                            }
+                                        }
+
+                                        notifyObservers();
+                                    });
+                });
+    }
+
+    public static synchronized void stopListening() {
+
+        if (postsListener != null) {
+            postsListener.remove();
+            postsListener = null;
+        }
+
+        if (userListener != null) {
+            userListener.remove();
+            userListener = null;
+        }
+
+        if (myPostsListener != null) {
+            myPostsListener.remove();
+            myPostsListener = null;
+        }
+
+        POSTS.clear();
+        MY_POSTS.clear();
+
+        currentUid = null;
+        currentGalaxyId = null;
+    }
+
+    // ==========================================
+    // 화면에 데이터 변경 알림
+    // ==========================================
+
+    public static synchronized void addObserver(
+            Runnable observer) {
+
+        if (observer != null
+                && !observers.contains(observer)) {
+            observers.add(observer);
+        }
+
+        ensureListening();
+    }
+
+    public static synchronized void removeObserver(
+            Runnable observer) {
+        observers.remove(observer);
+    }
+
+    private static void notifyObservers() {
+
+        List<Runnable> copy;
+
+        synchronized (CourtRepository.class) {
+            copy = new ArrayList<>(observers);
+        }
+
+        for (Runnable observer : copy) {
+            observer.run();
+        }
+    }
+
+    // ==========================================
+    // Firestore 문서 -> CourtPost
+    // ==========================================
+
+    private static CourtPost fromDocument(
+            DocumentSnapshot doc) {
+
+        CourtPost post = new CourtPost();
+
+        post.id = doc.getId();
+
+        post.title = doc.getString("title");
+        post.situation = doc.getString("situation");
+        post.positionA = doc.getString("positionA");
+        post.positionB = doc.getString("positionB");
+        post.galaxyName = doc.getString("galaxyName");
+
+        Long votesA = doc.getLong("votesA");
+        Long votesB = doc.getLong("votesB");
+
+        post.votesA = votesA == null
+                ? 0 : votesA.intValue();
+
+        post.votesB = votesB == null
+                ? 0 : votesB.intValue();
+
+        post.createdAt =
+                timestampToMillis(doc, "createdAt");
+
+        post.deadlineAt =
+                timestampToMillis(doc, "deadlineAt");
+
+        post.resolvedAt =
+                timestampToMillis(doc, "resolvedAt");
+
+        String galaxyId = doc.getString("galaxyId");
+
+        post.mine = currentGalaxyId != null
+                && currentGalaxyId.equals(galaxyId);
+
+        // 기존 캐시의 사용자별 화면 상태 유지
+        CourtPost old = MY_POSTS.get(post.id);
+
+        if (old == null) {
+            old = POSTS.get(post.id);
+        }
+
+        if (old != null) {
+            post.myVote = old.myVote;
+            post.myLesson = old.myLesson;
+            post.partnerLesson = old.partnerLesson;
+        }
+
+        return post;
+    }
+
+    private static long timestampToMillis(
+            DocumentSnapshot doc,
+            String field) {
+
+        Timestamp value = doc.getTimestamp(field);
+
+        return value == null
+                ? 0L
+                : value.toDate().getTime();
+    }
+
+    // ==========================================
+    // 전체 재판 목록
+    // ==========================================
+
+    public static synchronized List<CourtPost> getPosts(
+            boolean latestFirst) {
+
+        ensureListening();
+
+        Map<String, CourtPost> merged =
+                new HashMap<>(POSTS);
+
+        merged.putAll(MY_POSTS);
+
+        List<CourtPost> result =
+                new ArrayList<>(merged.values());
+
+        if (latestFirst) {
+
+            Collections.sort(result,
+                    (a, b) -> Long.compare(
+                            b.createdAt, a.createdAt));
+
+        } else {
+
+            Collections.sort(result,
+                    (a, b) -> Long.compare(
+                            a.deadlineAt, b.deadlineAt));
+        }
+
         return result;
     }
 
-    // 진행 중(화해 전)인 내 블랙홀이 하나라도 있는가 -> 은하계 메인에 블랙홀 표시 여부
-    // TODO(DB 연동 후): Firestore 의 내 커플 블랙홀 조회로 교체
+    // ==========================================
+    // 내가 속한 은하계의 블랙홀
+    // ==========================================
+
+    public static synchronized List<CourtPost> getMyPosts(
+            boolean resolved) {
+
+        ensureListening();
+
+        List<CourtPost> result = new ArrayList<>();
+
+        for (CourtPost post : MY_POSTS.values()) {
+
+            if (post.isResolved() == resolved) {
+                result.add(post);
+            }
+        }
+
+        result.sort(
+                (a, b) -> Long.compare(
+                        b.createdAt, a.createdAt)
+        );
+
+        return result;
+    }
+
     public static synchronized boolean hasOpenBlackhole() {
-        for (CourtPost post : POSTS) {
-            if (post.mine && !post.isResolved()) {
+
+        ensureListening();
+
+        for (CourtPost post : MY_POSTS.values()) {
+            if (!post.isResolved()) {
                 return true;
             }
         }
+
         return false;
     }
 
-    public static synchronized CourtPost findById(String id) {
-        for (CourtPost post : POSTS) {
-            if (post.id.equals(id)) {
-                return post;
+    // ==========================================
+    // 재판 단건 조회
+    // ==========================================
+
+    public static synchronized CourtPost findById(
+            String id) {
+
+        ensureListening();
+
+        if (id == null) {
+            return null;
+        }
+
+        CourtPost post = MY_POSTS.get(id);
+
+        if (post != null) {
+            return post;
+        }
+
+        return POSTS.get(id);
+    }
+
+    // ==========================================
+    // 재판 생성
+    // ==========================================
+
+    public static Task<Void> add(CourtPost post) {
+
+        final FirebaseUser user;
+
+        try {
+            user = requireUser();
+        } catch (Exception e) {
+            return Tasks.forException(e);
+        }
+
+        String uid = user.getUid();
+
+        if (post == null
+                || post.title == null
+                || post.situation == null
+                || post.positionA == null
+                || post.positionB == null) {
+
+            return Tasks.forException(
+                    new IllegalArgumentException(
+                            "재판 내용을 확인해주세요."
+                    )
+            );
+        }
+
+        // 현재 로그인 사용자의 은하계 조회
+        return db.collection("users")
+                .document(uid)
+                .get()
+                .continueWithTask(userTask -> {
+
+                    if (!userTask.isSuccessful()) {
+                        return Tasks.forException(
+                                userTask.getException()
+                        );
+                    }
+
+                    String galaxyId =
+                            userTask.getResult()
+                                    .getString("galaxyId");
+
+                    if (galaxyId == null) {
+                        return Tasks.forException(
+                                new IllegalStateException(
+                                        "연결된 은하계가 없습니다."
+                                )
+                        );
+                    }
+
+                    // 실제 은하계 정보 조회
+                    return db.collection("galaxies")
+                            .document(galaxyId)
+                            .get()
+                            .continueWithTask(galaxyTask -> {
+
+                                if (!galaxyTask.isSuccessful()) {
+                                    return Tasks.forException(
+                                            galaxyTask.getException()
+                                    );
+                                }
+
+                                DocumentSnapshot galaxy =
+                                        galaxyTask.getResult();
+
+                                if (!galaxy.exists()
+                                        || !"active".equals(
+                                        galaxy.getString("status"))) {
+
+                                    return Tasks.forException(
+                                            new IllegalStateException(
+                                                    "활성화된 은하계가 없습니다."
+                                            )
+                                    );
+                                }
+
+                                List<String> members =
+                                        (List<String>) galaxy.get(
+                                                "memberUids"
+                                        );
+
+                                if (members == null
+                                        || !members.contains(uid)) {
+
+                                    return Tasks.forException(
+                                            new IllegalStateException(
+                                                    "은하계 구성원이 아닙니다."
+                                            )
+                                    );
+                                }
+
+                                DocumentReference ref =
+                                        db.collection(COLLECTION)
+                                                .document();
+
+                                Map<String, Object> data =
+                                        new HashMap<>();
+
+                                data.put("title",
+                                        post.title.trim());
+
+                                data.put("situation",
+                                        post.situation.trim());
+
+                                data.put("positionA",
+                                        post.positionA.trim());
+
+                                data.put("positionB",
+                                        post.positionB.trim());
+
+                                data.put("authorUid", uid);
+                                data.put("galaxyId", galaxyId);
+
+                                data.put(
+                                        "galaxyName",
+                                        galaxy.getString("name")
+                                );
+
+                                data.put("memberUids", members);
+
+                                data.put("votesA", 0);
+                                data.put("votesB", 0);
+
+                                data.put(
+                                        "createdAt",
+                                        FieldValue.serverTimestamp()
+                                );
+
+                                data.put(
+                                        "deadlineAt",
+                                        new Timestamp(
+                                                new Date(
+                                                        System.currentTimeMillis()
+                                                                + VOTE_DURATION
+                                                )
+                                        )
+                                );
+
+                                data.put("resolvedAt", null);
+
+                                return ref.set(data);
+                            });
+                });
+    }
+
+    // ==========================================
+    // A/B 투표
+    // ==========================================
+
+    public static Task<Void> vote(
+            String postId,
+            int choice) {
+
+        final FirebaseUser user;
+
+        try {
+            user = requireUser();
+        } catch (Exception e) {
+            return Tasks.forException(e);
+        }
+
+        if (choice != CourtPost.VOTE_A
+                && choice != CourtPost.VOTE_B) {
+
+            return Tasks.forException(
+                    new IllegalArgumentException(
+                            "잘못된 투표 선택입니다."
+                    )
+            );
+        }
+
+        String uid = user.getUid();
+
+        DocumentReference postRef =
+                postRef(postId);
+
+        DocumentReference voteRef =
+                postRef.collection("votes")
+                        .document(uid);
+
+        return db.runTransaction(transaction -> {
+
+            // 트랜잭션은 읽기를 먼저 수행
+            DocumentSnapshot post =
+                    transaction.get(postRef);
+
+            DocumentSnapshot previous =
+                    transaction.get(voteRef);
+
+            if (!post.exists()) {
+                throw new IllegalStateException(
+                        "재판을 찾을 수 없습니다."
+                );
             }
-        }
-        return null;
+
+            if (previous.exists()) {
+                throw new IllegalStateException(
+                        "이미 투표한 재판입니다."
+                );
+            }
+
+            List<String> members =
+                    (List<String>) post.get("memberUids");
+
+            if (members != null && members.contains(uid)) {
+                throw new IllegalStateException(
+                        "재판 당사자는 투표할 수 없습니다."
+                );
+            }
+
+            Timestamp deadline =
+                    post.getTimestamp("deadlineAt");
+
+            if (deadline == null
+                    || System.currentTimeMillis()
+                    >= deadline.toDate().getTime()
+                    || post.getTimestamp("resolvedAt") != null) {
+
+                throw new IllegalStateException(
+                        "투표가 마감되었습니다."
+                );
+            }
+
+            String voteField =
+                    choice == CourtPost.VOTE_A
+                            ? "votesA" : "votesB";
+
+            Long current =
+                    post.getLong(voteField);
+
+            Map<String, Object> voteData =
+                    new HashMap<>();
+
+            voteData.put("choice", choice);
+
+            voteData.put(
+                    "createdAt",
+                    FieldValue.serverTimestamp()
+            );
+
+            // 투표 기록 저장
+            transaction.set(voteRef, voteData);
+
+            // 투표 집계 증가
+            transaction.update(
+                    postRef,
+                    voteField,
+                    (current == null ? 0L : current) + 1L
+            );
+
+            return null;
+        }).continueWith(task -> {
+
+            if (!task.isSuccessful()) {
+                throw task.getException();
+            }
+
+            synchronized (CourtRepository.class) {
+                CourtPost cached = POSTS.get(postId);
+                if (cached != null) {
+                    cached.myVote = choice;
+                }
+
+                CourtPost mine = MY_POSTS.get(postId);
+                if (mine != null) {
+                    mine.myVote = choice;
+                }
+            }
+
+            notifyObservers();
+            return null;
+        });
     }
 
-    public static synchronized void add(CourtPost post) {
-        POSTS.add(post);
+    // ==========================================
+    // 화해: 내 배운 점 작성
+    // ==========================================
+
+    public static Task<Void> submitMyLesson(
+            String postId,
+            String lesson) {
+
+        final FirebaseUser user;
+
+        try {
+            user = requireUser();
+        } catch (Exception e) {
+            return Tasks.forException(e);
+        }
+
+        String text = lesson == null
+                ? "" : lesson.trim();
+
+        if (text.isEmpty() || text.length() > 2000) {
+            return Tasks.forException(
+                    new IllegalArgumentException(
+                            "배운 점은 1~2000자로 입력해주세요."
+                    )
+            );
+        }
+
+        String uid = user.getUid();
+
+        DocumentReference postRef =
+                postRef(postId);
+
+        DocumentReference lessonRef =
+                postRef.collection("lessons")
+                        .document(uid);
+
+        return db.runTransaction(transaction -> {
+
+            DocumentSnapshot post =
+                    transaction.get(postRef);
+
+            DocumentSnapshot previous =
+                    transaction.get(lessonRef);
+
+            if (!post.exists()) {
+                throw new IllegalStateException(
+                        "재판이 존재하지 않습니다."
+                );
+            }
+
+            if (post.getTimestamp("resolvedAt") != null) {
+                throw new IllegalStateException(
+                        "이미 화해한 재판입니다."
+                );
+            }
+
+            List<String> members =
+                    (List<String>) post.get("memberUids");
+
+            if (members == null
+                    || !members.contains(uid)) {
+                throw new IllegalStateException(
+                        "재판 당사자만 작성할 수 있습니다."
+                );
+            }
+
+            if (previous.exists()) {
+                throw new IllegalStateException(
+                        "이미 배운 점을 작성했습니다."
+                );
+            }
+
+            Map<String, Object> data =
+                    new HashMap<>();
+
+            data.put("lesson", text);
+            data.put(
+                    "createdAt",
+                    FieldValue.serverTimestamp()
+            );
+
+            transaction.set(lessonRef, data);
+
+            return null;
+
+        }).continueWithTask(task -> {
+
+            if (!task.isSuccessful()) {
+                return Tasks.forException(
+                        task.getException()
+                );
+            }
+
+            // 두 사람 모두 작성했다면 화해 완료
+            return resolveIfBothWrote(postId);
+        });
     }
 
-    // choice : CourtPost.VOTE_A 또는 CourtPost.VOTE_B (이미 투표했으면 무시)
-    public static synchronized void vote(String id, int choice) {
-        CourtPost post = findById(id);
-        if (post == null || post.myVote != CourtPost.VOTE_NONE) {
-            return;
-        }
-        if (choice == CourtPost.VOTE_A) {
-            post.votesA++;
-        } else if (choice == CourtPost.VOTE_B) {
-            post.votesB++;
-        } else {
-            return;
-        }
-        post.myVote = choice;
+    // ==========================================
+    // 화해 완료 여부 확인
+    // ==========================================
+
+    private static Task<Void> resolveIfBothWrote(
+            String postId) {
+
+        DocumentReference ref = postRef(postId);
+
+        return db.runTransaction(transaction -> {
+
+            DocumentSnapshot post =
+                    transaction.get(ref);
+
+            if (!post.exists()) {
+                return null;
+            }
+
+            if (post.getTimestamp("resolvedAt") != null) {
+                return null;
+            }
+
+            List<String> members =
+                    (List<String>) post.get("memberUids");
+
+            if (members == null || members.size() != 2) {
+                return null;
+            }
+
+            DocumentReference lessonA =
+                    ref.collection("lessons")
+                            .document(members.get(0));
+
+            DocumentReference lessonB =
+                    ref.collection("lessons")
+                            .document(members.get(1));
+
+            DocumentSnapshot docA =
+                    transaction.get(lessonA);
+
+            DocumentSnapshot docB =
+                    transaction.get(lessonB);
+
+            if (docA.exists() && docB.exists()) {
+
+                transaction.update(
+                        ref,
+                        "resolvedAt",
+                        FieldValue.serverTimestamp()
+                );
+            }
+
+            return null;
+        });
     }
 
-    // 내 배운점 제출. 상대도 이미 썼다면 이 순간 화해 완료(해결 시각 기록 -> 삼킨 별 반환)
-    // TODO(DB 연동 후): 내 uid 기준으로 Firestore에 저장, 둘 다 있으면 resolvedAt 기록
-    public static synchronized void submitMyLesson(String id, String lesson) {
-        CourtPost post = findById(id);
-        if (post == null || post.isResolved() || post.myLesson != null) {
-            return;
+    // ==========================================
+    // 화해 내용 다시 불러오기
+    // ==========================================
+
+    public static Task<Void> loadLessons(
+            String postId) {
+
+        FirebaseUser user =
+                FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            return Tasks.forException(
+                    new IllegalStateException(
+                            "로그인이 필요합니다."
+                    )
+            );
         }
-        post.myLesson = lesson;
-        resolveIfBothWrote(post);
+
+        String uid = user.getUid();
+
+        return postRef(postId).get()
+                .continueWithTask(postTask -> {
+
+                    if (!postTask.isSuccessful()) {
+                        return Tasks.forException(
+                                postTask.getException()
+                        );
+                    }
+
+                    DocumentSnapshot doc =
+                            postTask.getResult();
+
+                    List<String> members =
+                            (List<String>) doc.get(
+                                    "memberUids"
+                            );
+
+                    if (members == null
+                            || !members.contains(uid)
+                            || members.size() != 2) {
+
+                        return Tasks.forException(
+                                new IllegalStateException(
+                                        "화해 내용을 조회할 수 없습니다."
+                                )
+                        );
+                    }
+
+                    String partnerUid =
+                            members.get(0).equals(uid)
+                                    ? members.get(1)
+                                    : members.get(0);
+
+                    Task<DocumentSnapshot> mine =
+                            postRef(postId)
+                                    .collection("lessons")
+                                    .document(uid)
+                                    .get();
+
+                    Task<DocumentSnapshot> partner =
+                            postRef(postId)
+                                    .collection("lessons")
+                                    .document(partnerUid)
+                                    .get();
+
+                    return Tasks.whenAllSuccess(mine, partner)
+                            .continueWith(task -> {
+
+                                List<Object> results =
+                                        task.getResult();
+
+                                DocumentSnapshot myDoc =
+                                        (DocumentSnapshot)
+                                                results.get(0);
+
+                                DocumentSnapshot partnerDoc =
+                                        (DocumentSnapshot)
+                                                results.get(1);
+
+                                synchronized (
+                                        CourtRepository.class) {
+
+                                    CourtPost post =
+                                            MY_POSTS.get(postId);
+
+                                    if (post == null) {
+                                        post = POSTS.get(postId);
+                                    }
+
+                                    if (post != null) {
+                                        post.myLesson =
+                                                myDoc.getString("lesson");
+
+                                        post.partnerLesson =
+                                                partnerDoc.getString("lesson");
+                                    }
+                                }
+
+                                notifyObservers();
+
+                                return null;
+                            });
+                });
     }
 
-    // [테스트용] 상대 폰에서 배운점을 쓴 것처럼 처리 (DB 연동 후 삭제)
-    public static synchronized void submitPartnerLessonForTest(String id) {
-        CourtPost post = findById(id);
-        if (post == null || post.isResolved() || post.partnerLesson != null) {
-            return;
-        }
-        post.partnerLesson = "(테스트) 상대방도 이번 일로 배운 점을 적었어요.";
-        resolveIfBothWrote(post);
-    }
+    // ==========================================
+    // 기존 테스트 메서드
+    // ==========================================
 
-    private static void resolveIfBothWrote(CourtPost post) {
-        if (post.myLesson != null && post.partnerLesson != null && !post.isResolved()) {
-            post.resolvedAt = System.currentTimeMillis();
-        }
+    // Firebase에서는 다른 사용자 대신
+    // 화해 내용을 작성할 수 없어야 함.
+    @Deprecated
+    public static void submitPartnerLessonForTest(
+            String postId) {
+
+        Log.w(TAG,
+                "테스트용 상대 배운 점 제출은 비활성화됨");
     }
 }
