@@ -1,3 +1,4 @@
+
 package com.example.starring.court;
 
 import android.os.Bundle;
@@ -10,45 +11,78 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.starring.R;
+import com.google.firebase.Timestamp;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
-/**
- * 화해 화면
- * 1) 내 배운점 입력  ->  2) 상대가 쓸 때까지 대기  ->  3) 둘 다 쓰면 화해 완료(삼킨 별 반환)
- * 대기 중에도 블랙홀은 계속 별을 삼킴 (화해 완료 시각에 멈추고 그때까지 삼킨 별이 돌아옴).
- *
- * TODO(DB 연동 후): 상대가 쓴 상태를 Firestore 실시간 리스너로 받기, 테스트 버튼 삭제
- */
 public class CourtReconcileActivity extends AppCompatActivity {
 
     public static final String EXTRA_POST_ID = "post_id";
 
-    // TODO(은하계 연동 후): 임시값 -> 우리 은하계의 실제 애기별 개수(경과 일수)로 교체
+    // 임시값: 추후 실제 은하계 애기별 수로 교체
     private static final int AVAILABLE_STARS = 20;
 
+    private final FirebaseFirestore db =
+            FirebaseFirestore.getInstance();
+
+    private final Handler handler =
+            new Handler(Looper.getMainLooper());
+
     private String postId;
-    private boolean wasResolved; // 이 화면을 보는 중에 화해가 완료되는 순간을 감지
+    private String uid;
+    private String partnerUid;
+
+    private CourtPost currentPost;
+
+    private DocumentReference postRef;
+
+    private ListenerRegistration postListener;
+    private ListenerRegistration lessonsListener;
+
+    private final Map<String, String> lessonMap =
+            new HashMap<>();
+
+    private boolean receivedFirstPost = false;
+    private boolean wasResolved = false;
+    private boolean saving = false;
+    private boolean submittedLocally = false;
+    private boolean resolving = false;
 
     private TextView textTitle;
     private TextView textSwallowedLabel;
     private TextView textSwallowed;
     private TextView textNext;
     private TextView textGuide;
-    private View layoutInput;
-    private View layoutWaiting;
-    private View layoutDone;
-    private EditText editLesson;
+
     private TextView textWaitingMine;
     private TextView textDoneMine;
     private TextView textDonePartner;
+
+    private View layoutInput;
+    private View layoutWaiting;
+    private View layoutDone;
+
+    private View btnSubmit;
     private View btnPartnerTest;
 
-    private final Handler handler = new Handler(Looper.getMainLooper());
+    private EditText editLesson;
+
     private final Runnable ticker = new Runnable() {
         @Override
         public void run() {
+
             render();
+
             handler.postDelayed(this, 1000);
         }
     };
@@ -56,131 +90,586 @@ public class CourtReconcileActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_court_reconcile);
 
         postId = getIntent().getStringExtra(EXTRA_POST_ID);
-        CourtPost first = postId == null ? null : CourtRepository.findById(postId);
-        if (first == null) {
+
+        FirebaseUser user =
+                FirebaseAuth.getInstance().getCurrentUser();
+
+        if (postId == null || user == null) {
             finish();
             return;
         }
-        wasResolved = first.isResolved();
+
+        uid = user.getUid();
+
+        postRef = db.collection("courtPosts")
+                .document(postId);
 
         textTitle = findViewById(R.id.textTitle);
-        textSwallowedLabel = findViewById(R.id.textSwallowedLabel);
-        textSwallowed = findViewById(R.id.textSwallowed);
+
+        textSwallowedLabel =
+                findViewById(R.id.textSwallowedLabel);
+
+        textSwallowed =
+                findViewById(R.id.textSwallowed);
+
         textNext = findViewById(R.id.textNext);
         textGuide = findViewById(R.id.textGuide);
+
         layoutInput = findViewById(R.id.layoutInput);
         layoutWaiting = findViewById(R.id.layoutWaiting);
         layoutDone = findViewById(R.id.layoutDone);
+
         editLesson = findViewById(R.id.editLesson);
-        textWaitingMine = findViewById(R.id.textWaitingMine);
+
+        textWaitingMine =
+                findViewById(R.id.textWaitingMine);
+
         textDoneMine = findViewById(R.id.textDoneMine);
-        textDonePartner = findViewById(R.id.textDonePartner);
+
+        textDonePartner =
+                findViewById(R.id.textDonePartner);
+
+        btnSubmit = findViewById(R.id.btnSubmit);
         btnPartnerTest = findViewById(R.id.btnPartnerTest);
 
-        findViewById(R.id.btnBack).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                finish();
-            }
-        });
+        findViewById(R.id.btnBack)
+                .setOnClickListener(v -> finish());
 
-        findViewById(R.id.btnSubmit).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                submit();
-            }
-        });
+        btnSubmit.setOnClickListener(v -> submit());
 
-        // [테스트용] 상대 폰에서 쓴 것처럼 처리
-        btnPartnerTest.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                CourtRepository.submitPartnerLessonForTest(postId);
-                render();
-            }
-        });
-
-        render();
+        // 기존 상대방 대신 작성하는 테스트 기능 제거
+        if (btnPartnerTest != null) {
+            btnPartnerTest.setVisibility(View.GONE);
+        }
     }
+
+    // ==========================================
+    // Firebase 실시간 조회
+    // ==========================================
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+
+        if (postRef == null || uid == null) {
+            return;
+        }
+
+        startWatching();
+    }
+
+    private void startWatching() {
+
+        stopWatching();
+
+        // 1. 재판 상태 감시
+        postListener = postRef.addSnapshotListener(
+                (snapshot, error) -> {
+
+                    if (error != null) {
+                        CourtNotice.show(
+                                this,
+                                "재판 조회 실패: " + error.getMessage()
+                        );
+                        return;
+                    }
+
+                    if (snapshot == null) {
+                        return;
+                    }
+
+                    if (!snapshot.exists()) {
+                        CourtNotice.show(
+                                this,
+                                "재판을 찾을 수 없습니다."
+                        );
+                        finish();
+                        return;
+                    }
+
+                    currentPost = readPost(snapshot);
+
+                    if (!receivedFirstPost) {
+                        wasResolved = currentPost.isResolved();
+                        receivedFirstPost = true;
+                    }
+
+                    render();
+                    tryResolveIfBothWrote();
+                }
+        );
+
+        // 2. 커플 두 사람의 배운 점 실시간 감시
+        lessonsListener = postRef.collection("lessons")
+                .addSnapshotListener((snapshot, error) -> {
+
+                    if (error != null) {
+                        CourtNotice.show(
+                                this,
+                                "화해 내용 조회 실패: "
+                                        + error.getMessage()
+                        );
+                        return;
+                    }
+
+                    if (snapshot == null) {
+                        return;
+                    }
+
+                    lessonMap.clear();
+
+                    for (DocumentSnapshot doc :
+                            snapshot.getDocuments()) {
+
+                        String lesson =
+                                doc.getString("lesson");
+
+                        if (lesson != null) {
+                            lessonMap.put(doc.getId(), lesson);
+                        }
+                    }
+
+                    if (lessonMap.containsKey(uid)) {
+                        submittedLocally = false;
+                    }
+
+                    render();
+                    tryResolveIfBothWrote();
+                });
+    }
+
+    private void stopWatching() {
+
+        if (postListener != null) {
+            postListener.remove();
+            postListener = null;
+        }
+
+        if (lessonsListener != null) {
+            lessonsListener.remove();
+            lessonsListener = null;
+        }
+    }
+
+    // ==========================================
+    // Firestore 문서 변환
+    // ==========================================
+
+    private CourtPost readPost(DocumentSnapshot doc) {
+
+        CourtPost post = new CourtPost();
+
+        post.id = doc.getId();
+        post.title = doc.getString("title");
+        post.situation = doc.getString("situation");
+
+        post.createdAt = timeOf(doc, "createdAt");
+        post.deadlineAt = timeOf(doc, "deadlineAt");
+        post.resolvedAt = timeOf(doc, "resolvedAt");
+
+        partnerUid = null;
+
+        Object memberData = doc.get("memberUids");
+
+        if (memberData instanceof List) {
+
+            List<?> members = (List<?>) memberData;
+
+            if (!members.contains(uid)) {
+                CourtNotice.show(
+                        this,
+                        "해당 재판의 구성원이 아닙니다."
+                );
+                finish();
+                return post;
+            }
+
+            for (Object member : members) {
+
+                if (member instanceof String
+                        && !uid.equals(member)) {
+
+                    partnerUid = (String) member;
+                    break;
+                }
+            }
+        }
+
+        return post;
+    }
+
+    private long timeOf(
+            DocumentSnapshot doc,
+            String field) {
+
+        Timestamp timestamp = doc.getTimestamp(field);
+
+        return timestamp == null
+                ? 0L
+                : timestamp.toDate().getTime();
+    }
+
+    // ==========================================
+    // 배운 점 제출
+    // ==========================================
 
     private void submit() {
-        String lesson = editLesson.getText().toString().trim();
-        if (lesson.isEmpty()) {
-            CourtNotice.show(this, getString(R.string.court_reconcile_lesson_empty));
+
+        if (saving
+                || submittedLocally
+                || currentPost == null
+                || currentPost.isResolved()) {
             return;
         }
-        CourtRepository.submitMyLesson(postId, lesson);
-        render();
+
+        if (lessonMap.containsKey(uid)) {
+            return;
+        }
+
+        String lesson =
+                editLesson.getText().toString().trim();
+
+        if (lesson.isEmpty()) {
+
+            CourtNotice.show(
+                    this,
+                    getString(
+                            R.string.court_reconcile_lesson_empty
+                    )
+            );
+
+            return;
+        }
+
+        if (lesson.length() > 2000) {
+
+            CourtNotice.show(
+                    this,
+                    "배운 점은 2000자 이하로 입력해주세요."
+            );
+
+            return;
+        }
+
+        setSaving(true);
+
+        // CourtRepository가 Firestore에 실제 저장
+        CourtRepository.submitMyLesson(postId, lesson)
+                .addOnSuccessListener(this, unused -> {
+
+                    setSaving(false);
+                    submittedLocally = true;
+
+                    CourtNotice.show(
+                            this,
+                            "배운 점이 저장되었습니다."
+                    );
+
+                    render();
+                })
+                .addOnFailureListener(this, error -> {
+
+                    setSaving(false);
+
+                    CourtNotice.show(
+                            this,
+                            "저장 실패: " + error.getMessage()
+                    );
+
+                    render();
+                });
     }
 
-    private void render() {
-        CourtPost post = CourtRepository.findById(postId);
-        if (post == null) {
-            finish();
+    private void setSaving(boolean value) {
+
+        saving = value;
+
+        if (btnSubmit != null) {
+            btnSubmit.setEnabled(!value);
+        }
+
+        if (editLesson != null) {
+            editLesson.setEnabled(!value);
+        }
+    }
+
+    // ==========================================
+    // 두 사람 모두 제출했는지 확인
+    // ==========================================
+
+    private void tryResolveIfBothWrote() {
+
+        if (resolving
+                || postRef == null
+                || currentPost == null
+                || currentPost.isResolved()
+                || partnerUid == null) {
             return;
         }
+
+        // 두 사람의 배운 점이 모두 있어야 함
+        if (!lessonMap.containsKey(uid)
+                || !lessonMap.containsKey(partnerUid)) {
+            return;
+        }
+
+        resolving = true;
+
+        // Firestore 트랜잭션으로 최종 확인
+        db.runTransaction(transaction -> {
+
+            DocumentSnapshot post =
+                    transaction.get(postRef);
+
+            if (!post.exists()
+                    || post.getTimestamp("resolvedAt") != null) {
+                return null;
+            }
+
+            Object memberData = post.get("memberUids");
+
+            if (!(memberData instanceof List)) {
+                return null;
+            }
+
+            List<?> members = (List<?>) memberData;
+
+            if (members.size() != 2
+                    || !members.contains(uid)) {
+                return null;
+            }
+
+            Object first = members.get(0);
+            Object second = members.get(1);
+
+            if (!(first instanceof String)
+                    || !(second instanceof String)) {
+                return null;
+            }
+
+            DocumentReference lessonA =
+                    postRef.collection("lessons")
+                            .document((String) first);
+
+            DocumentReference lessonB =
+                    postRef.collection("lessons")
+                            .document((String) second);
+
+            // 모든 읽기 완료 후 쓰기
+            DocumentSnapshot docA =
+                    transaction.get(lessonA);
+
+            DocumentSnapshot docB =
+                    transaction.get(lessonB);
+
+            if (docA.exists() && docB.exists()) {
+
+                transaction.update(
+                        postRef,
+                        "resolvedAt",
+                        FieldValue.serverTimestamp()
+                );
+            }
+
+            return null;
+
+        }).addOnCompleteListener(this, task -> {
+
+            resolving = false;
+
+            if (!task.isSuccessful()) {
+                CourtNotice.show(
+                        this,
+                        "화해 완료 처리 실패: "
+                                + task.getException()
+                );
+            }
+
+            // 성공하면 postListener가 resolvedAt 변경 감지
+        });
+    }
+
+    // ==========================================
+    // 화해 화면 갱신
+    // ==========================================
+
+    private void render() {
+
+        if (currentPost == null || textTitle == null) {
+            return;
+        }
+
+        CourtPost post = currentPost;
+
+        String myLesson = lessonMap.get(uid);
+
+        String partnerLesson =
+                partnerUid == null
+                        ? null
+                        : lessonMap.get(partnerUid);
+
+        post.myLesson = myLesson;
+        post.partnerLesson = partnerLesson;
+
+        boolean resolved = post.isResolved();
+        boolean iWrote =
+                myLesson != null || submittedLocally;
 
         textTitle.setText("[" + post.title + "]");
 
-        boolean resolved = post.isResolved();
-        boolean iWrote = post.myLesson != null;
-
-        // 화면을 보는 중에 화해가 완료되면 안내 메시지
+        // 화면을 보는 중 화해가 완료되면 표시
         if (resolved && !wasResolved) {
+
             wasResolved = true;
-            CourtNotice.show(this, "삼켜졌던 별 "
-                    + post.returnedStars(AVAILABLE_STARS) + "개가 돌아왔어요 ✨");
+
+            CourtNotice.show(
+                    this,
+                    "삼켜졌던 별 "
+                            + post.returnedStars(AVAILABLE_STARS)
+                            + "개가 돌아왔어요 ✨"
+            );
         }
 
         if (resolved) {
-            // 3) 화해 완료
-            textSwallowedLabel.setText(R.string.court_reconcile_returned);
-            textSwallowed.setText(post.returnedStars(AVAILABLE_STARS) + "개");
-            textNext.setText(R.string.court_reconcile_done_next);
-            textGuide.setText(R.string.court_reconcile_guide_done);
-            textDoneMine.setText(post.myLesson);
-            textDonePartner.setText(post.partnerLesson);
+
+            // 화해 완료 상태
+            textSwallowedLabel.setText(
+                    R.string.court_reconcile_returned
+            );
+
+            textSwallowed.setText(
+                    post.returnedStars(AVAILABLE_STARS)
+                            + "개"
+            );
+
+            textNext.setText(
+                    R.string.court_reconcile_done_next
+            );
+
+            textGuide.setText(
+                    R.string.court_reconcile_guide_done
+            );
+
+            textDoneMine.setText(
+                    myLesson == null
+                            ? "불러오는 중..."
+                            : myLesson
+            );
+
+            textDonePartner.setText(
+                    partnerLesson == null
+                            ? "불러오는 중..."
+                            : partnerLesson
+            );
+
         } else {
-            // 1), 2) 아직 화해 전: 블랙홀은 계속 별을 삼키는 중
-            textSwallowedLabel.setText(R.string.court_reconcile_swallowed);
-            int swallowed = post.swallowedStars(AVAILABLE_STARS);
+
+            // 화해 전: 블랙홀이 별을 삼키는 중
+            textSwallowedLabel.setText(
+                    R.string.court_reconcile_swallowed
+            );
+
+            int swallowed =
+                    post.swallowedStars(AVAILABLE_STARS);
+
             textSwallowed.setText(swallowed + "개");
+
             if (swallowed >= AVAILABLE_STARS) {
-                textNext.setText(R.string.court_reconcile_no_more);
+
+                textNext.setText(
+                        R.string.court_reconcile_no_more
+                );
+
             } else {
+
                 long left = StarConsumption.millisUntilNext(
-                        post.createdAt, post.resolvedAt, System.currentTimeMillis());
-                long sec = left / 1000L;
-                textNext.setText(String.format(Locale.US,
-                        "다음 별까지 %02d:%02d", sec / 60, sec % 60));
+                        post.createdAt,
+                        post.resolvedAt,
+                        System.currentTimeMillis()
+                );
+
+                long seconds = left / 1000L;
+
+                textNext.setText(
+                        String.format(
+                                Locale.US,
+                                "다음 별까지 %02d:%02d",
+                                seconds / 60,
+                                seconds % 60
+                        )
+                );
             }
-            textGuide.setText(iWrote
-                    ? R.string.court_reconcile_guide_wait
-                    : R.string.court_reconcile_guide_input);
+
+            textGuide.setText(
+                    iWrote
+                            ? R.string.court_reconcile_guide_wait
+                            : R.string.court_reconcile_guide_input
+            );
+
             if (iWrote) {
-                textWaitingMine.setText(post.myLesson);
+
+                textWaitingMine.setText(
+                        myLesson == null
+                                ? "저장된 내용을 불러오는 중..."
+                                : myLesson
+                );
             }
         }
 
-        layoutInput.setVisibility(!resolved && !iWrote ? View.VISIBLE : View.GONE);
-        layoutWaiting.setVisibility(!resolved && iWrote ? View.VISIBLE : View.GONE);
-        layoutDone.setVisibility(resolved ? View.VISIBLE : View.GONE);
-        btnPartnerTest.setVisibility(resolved ? View.GONE : View.VISIBLE);
+        layoutInput.setVisibility(
+                !resolved && !iWrote
+                        ? View.VISIBLE
+                        : View.GONE
+        );
+
+        layoutWaiting.setVisibility(
+                !resolved && iWrote
+                        ? View.VISIBLE
+                        : View.GONE
+        );
+
+        layoutDone.setVisibility(
+                resolved
+                        ? View.VISIBLE
+                        : View.GONE
+        );
+
+        btnSubmit.setEnabled(!saving && !iWrote);
+
+        if (btnPartnerTest != null) {
+            btnPartnerTest.setVisibility(View.GONE);
+        }
     }
+
+    // ==========================================
+    // 생명주기
+    // ==========================================
 
     @Override
     protected void onResume() {
         super.onResume();
+
         handler.removeCallbacks(ticker);
         handler.post(ticker);
     }
 
     @Override
     protected void onPause() {
+
         handler.removeCallbacks(ticker);
+
         super.onPause();
+    }
+
+    @Override
+    protected void onStop() {
+
+        stopWatching();
+
+        super.onStop();
     }
 }
