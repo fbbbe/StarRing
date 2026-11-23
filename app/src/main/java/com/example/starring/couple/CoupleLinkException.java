@@ -22,6 +22,8 @@ public class CoupleLinkException extends FirebaseFirestoreException {
         CODE_COLLISION("초대코드 발급에 실패했어요. 다시 시도해주세요."),
         NOT_WAITING("상대가 이미 합류해서 취소할 수 없어요."),
         NOT_NAMING("지금은 은하계 이름을 정할 수 없어요."),
+        NOT_LINKED("연결된 은하계에서만 만난 날을 바꿀 수 있어요."),
+        INVALID_START_DATE("만난 날은 1950년 1월 1일부터 오늘까지 고를 수 있어요."),
         USER_NOT_FOUND("사용자 정보를 찾을 수 없어요. 다시 로그인해주세요.");
 
         final String message;

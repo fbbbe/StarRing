@@ -12,6 +12,7 @@ import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 
 import com.example.starring.R;
 import com.example.starring.common.ErrorMessages;
@@ -22,6 +23,11 @@ import com.example.starring.data.FirestoreSchema.GalaxyStatus;
 import com.example.starring.data.GalaxyRepository;
 import com.example.starring.data.UserRepository;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.datepicker.CalendarConstraints;
+import com.google.android.material.datepicker.CompositeDateValidator;
+import com.google.android.material.datepicker.DateValidatorPointBackward;
+import com.google.android.material.datepicker.DateValidatorPointForward;
+import com.google.android.material.datepicker.MaterialDatePicker;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -32,6 +38,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -39,7 +46,7 @@ import java.util.Locale;
 /**
  * 커플 연동 화면. 은하계 상태에 따라 패널을 바꿔 보여준다.
  *
- *  CHOOSE  : 은하계 없음 → "새 은하계 만들기" 또는 "초대코드로 합류"
+ *  CHOOSE  : 은하계 없음 → "새 은하계 만들기"(만난 날 선택 후 생성) 또는 "초대코드로 합류"
  *  WAITING : 내가 만든 은하계에서 상대 대기 (코드 표시, 실시간 감지)
  *  NAMING  : 두 명이 모임 → 은하계 이름 설정 (먼저 저장한 사람의 이름 적용)
  *  ACTIVE  → 메인 화면으로 이동
@@ -49,6 +56,8 @@ import java.util.Locale;
 public class CoupleLinkActivity extends AppCompatActivity {
 
     private enum Panel { LOADING, CHOOSE, WAITING, NAMING }
+
+    private static final String TAG_START_DATE_PICKER = "startDatePicker";
 
     private final UserRepository userRepository = new UserRepository();
     private final GalaxyRepository galaxyRepository = new GalaxyRepository();
@@ -135,6 +144,12 @@ public class CoupleLinkActivity extends AppCompatActivity {
             FirebaseAuth.getInstance().signOut();
             Navigator.toLogin(this);
         });
+
+        // 화면 회전 등으로 다시 만들어진 날짜 선택기에 리스너 재연결 (리스너는 보존되지 않음)
+        Fragment picker = getSupportFragmentManager().findFragmentByTag(TAG_START_DATE_PICKER);
+        if (picker instanceof MaterialDatePicker) {
+            attachStartDateListener((MaterialDatePicker<?>) picker);
+        }
     }
 
     @Override
