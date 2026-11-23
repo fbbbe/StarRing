@@ -85,6 +85,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
     private boolean autoReissueTried;
     /** 내가 취소/해제하는 중 → "상대가 해제했어요" 안내를 띄우지 않기 위함 */
     private boolean selfLeaving;
+    private boolean activationInFlight = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -118,7 +119,9 @@ public class CoupleLinkActivity extends AppCompatActivity {
         btnSaveName = findViewById(R.id.btnSaveName);
         btnUnlinkNaming = findViewById(R.id.btnUnlinkNaming);
 
-        btnCreate.setOnClickListener(v -> createGalaxy());
+        btnCreate.setOnClickListener(
+                v -> Navigator.toGalaxySetup(this)
+        );
         btnJoin.setOnClickListener(v -> joinGalaxy());
         btnCopyCode.setOnClickListener(v -> copyCode());
         btnShareCode.setOnClickListener(v -> shareCode());
@@ -233,7 +236,7 @@ public class CoupleLinkActivity extends AppCompatActivity {
         if (GalaxyStatus.WAITING.equals(status)) {
             showWaiting(galaxy.getString(FirestoreSchema.GALAXY_INVITE_CODE));
         } else if (GalaxyStatus.NAMING.equals(status)) {
-            showNaming(galaxy);
+            activateAfterLink();
         } else if (GalaxyStatus.ACTIVE.equals(status)) {
             goMain();
         } else if (GalaxyStatus.UNLINKED.equals(status)) {
@@ -259,19 +262,6 @@ public class CoupleLinkActivity extends AppCompatActivity {
 
     // ───────────────────────── CHOOSE ─────────────────────────
 
-    private void createGalaxy() {
-        clearError();
-        setBusy(true);
-        galaxyRepository.createGalaxy(uid)
-                .addOnSuccessListener(this, gid -> {
-                    setBusy(false);
-                    watch(gid);
-                })
-                .addOnFailureListener(this, e -> {
-                    setBusy(false);
-                    showError(ErrorMessages.toMessage(e));
-                });
-    }
 
     private void joinGalaxy() {
         clearError();
@@ -519,4 +509,43 @@ public class CoupleLinkActivity extends AppCompatActivity {
     private static String text(TextInputEditText edit) {
         return edit.getText() == null ? "" : edit.getText().toString();
     }
+
+
+    private void activateAfterLink() {
+
+        if (activationInFlight
+                || galaxyId == null
+                || uid == null
+                || leaving) {
+            return;
+        }
+
+        activationInFlight = true;
+
+        // 이름을 다시 입력하지 않고 활성화 처리
+        show(Panel.LOADING);
+
+        galaxyRepository.activateGalaxy(uid, galaxyId)
+                .addOnSuccessListener(this, unused -> {
+                    activationInFlight = false;
+
+                    // active 상태 감지 후
+                    // 기존 render()가 goMain() 실행
+                })
+                .addOnFailureListener(this, e -> {
+
+                    activationInFlight = false;
+
+                    show(Panel.NAMING);
+
+                    // 기존 이름 설정 버튼을 재시도용으로 활용
+                    btnSaveName.setText("다시 시도");
+                    btnSaveName.setOnClickListener(
+                            v -> activateAfterLink()
+                    );
+
+                    showError(ErrorMessages.toMessage(e));
+                });
+    }
+
 }

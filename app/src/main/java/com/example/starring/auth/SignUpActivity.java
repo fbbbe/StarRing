@@ -17,6 +17,7 @@ import com.example.starring.common.Navigator;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+import com.google.firebase.auth.FirebaseAuth;
 
 public class SignUpActivity extends AppCompatActivity {
 
@@ -71,12 +72,9 @@ public class SignUpActivity extends AppCompatActivity {
                 setLoading(true);
                 break;
             case SUCCESS:
-                // 갓 가입한 사용자는 은하계가 없으므로 바로 커플 연동으로
-                Navigator.toCoupleLink(this);
-                break;
             case SUCCESS_NEEDS_RECOVERY:
-                // 계정은 이미 만들어졌으므로 Splash에서 users 문서 복구 후 분기
-                Navigator.toSplash(this);
+                FirebaseAuth.getInstance().signOut();
+                Navigator.toLogin(this);
                 break;
             case ERROR:
                 setLoading(false);

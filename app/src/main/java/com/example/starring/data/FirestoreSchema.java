@@ -42,6 +42,8 @@ public final class FirestoreSchema {
     public static final String GALAXY_CREATED_AT = "createdAt";
     public static final String GALAXY_BORN_AT = "bornAt";
     public static final String GALAXY_UNLINKED_AT = "unlinkedAt";
+    public static final String GALAXY_DATING_START_DATE =
+            "datingStartDate";
 
     // inviteCodes 필드
     public static final String CODE_GALAXY_ID = "galaxyId";

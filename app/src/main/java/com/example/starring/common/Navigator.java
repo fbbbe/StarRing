@@ -3,11 +3,14 @@ package com.example.starring.common;
 import android.app.Activity;
 import android.content.Intent;
 
+
 import com.example.starring.MainActivity;
 import com.example.starring.auth.LoginActivity;
 import com.example.starring.auth.SignUpActivity;
 import com.example.starring.couple.CoupleLinkActivity;
 import com.example.starring.galaxy.GalaxyPlaceholderActivity;
+import com.example.starring.GalaxySetupActivity;
+import com.example.starring.GalaxyLoadingActivity;
 
 /**
  * 화면 이동(Intent 생성)을 한 곳에 모은 클래스.
@@ -41,8 +44,15 @@ public final class Navigator {
      * 메인(은하계) 화면.
      * TODO: 팀원의 메인 화면이 완성되면 GalaxyPlaceholderActivity만 교체.
      */
+
+    // 만난 날짜 / 은하계 이름 설정
+    public static void toGalaxySetup(Activity from) {
+        startClearTask(from, GalaxySetupActivity.class);
+    }
+
+    // 은하계 로딩 → 실제 메인
     public static void toMain(Activity from) {
-        startClearTask(from, GalaxyPlaceholderActivity.class);
+        startClearTask(from, GalaxyLoadingActivity.class);
     }
 
     private static void startClearTask(Activity from, Class<? extends Activity> target) {
