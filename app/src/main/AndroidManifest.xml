@@ -97,6 +97,10 @@
             android:name=".PlanetDetailActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".GalaxyDestroyActivity"
+            android:exported="false" />
+
     </application>
 
 </manifest>

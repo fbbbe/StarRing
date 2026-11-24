@@ -1,4 +1,3 @@
-
 package com.example.starring;
 
 import android.app.Activity;
@@ -28,13 +27,17 @@ import com.example.starring.court.CourtNotice;
 import com.example.starring.court.CourtRepository;
 import com.example.starring.court.CourtPost;
 import com.example.starring.court.CourtVoteActivity;
-import java.util.List;
+import com.example.starring.auth.LoginActivity;
 import com.google.firebase.auth.FirebaseAuth;
+import com.example.starring.common.Navigator;
+
+import java.util.List;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.DocumentSnapshot;
+
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -459,13 +462,18 @@ public class GalaxyActivity extends Activity {
                 break;
 
             case 6:
-                // 천왕성 - 기능 없음
-                showComingSoon("천왕성");
+                // 천왕성 - 로그아웃
+                confirmLogout();
                 break;
 
             case 7:
-                // 해왕성 - 기능 없음
-                showComingSoon("해왕성");
+                // 해왕성 - 은하계 소멸
+                startActivity(
+                        new Intent(
+                                this,
+                                GalaxyDestroyActivity.class
+                        )
+                );
                 break;
         }
     }
@@ -845,5 +853,27 @@ public class GalaxyActivity extends Activity {
             planetsListener = null;
         }
     }
+
+
+
+    private void confirmLogout() {
+
+        new android.app.AlertDialog.Builder(this)
+                .setTitle("로그아웃")
+                .setMessage("정말 로그아웃하시겠습니까?")
+                .setNegativeButton("취소", null)
+                .setPositiveButton("로그아웃", (dialog, which) -> {
+
+                    // Firebase 로그인 세션 종료
+                    FirebaseAuth.getInstance().signOut();
+
+                    // 로그인 화면으로 이동
+                    // 기존 화면 스택도 모두 제거
+                    Navigator.toLogin(this);
+                })
+                .show();
+    }
+
+
 
 }
