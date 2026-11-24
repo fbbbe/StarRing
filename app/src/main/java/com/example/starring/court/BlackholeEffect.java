@@ -37,13 +37,13 @@ public class BlackholeEffect {
     private static final int PULSES_PER_SPIN = 10;
 
     // 블랙홀 크기 대비 후광 반경
-    private static final float HALO_SCALE = 1.55f;
+    private static final float HALO_SCALE = 0.55f;
 
     // 후광 크기 변화 정도
     private static final float HALO_PULSE = 0.12f;
 
     // 애니메이션 갱신 간격
-    private static final long LOOP_INTERVAL_MS = 50L;
+    private static final long LOOP_INTERVAL_MS = 100L;
 
     private final View host;
     private final Bitmap bitmap;

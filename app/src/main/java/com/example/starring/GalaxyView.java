@@ -67,7 +67,7 @@ public class GalaxyView extends View {
     // 위치(은하계 중심 기준 dp)와 크기(dp): 자리를 바꾸려면 이 숫자만 수정 - na가 추가
     private static final float BLACKHOLE_X_DP = 0f;
     private static final float BLACKHOLE_Y_DP = -170f;
-    private static final float BLACKHOLE_SIZE_DP = 300f;
+    private static final float BLACKHOLE_SIZE_DP = 600f;
 
     private static final int[] CONSTELLATION_RESOURCES = {
             R.drawable.constellation_01,

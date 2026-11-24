@@ -908,6 +908,62 @@ service cloud.firestore {
         && request.resource.data.createdAt == request.time;
 
         allow update, delete: if false;
+
+
+        // ───────────────────────── 행성 생성 ─────────────────────────
+
+        match /galaxies/{galaxyId}/planets/{planetId} {
+
+          // 같은 은하계의 커플만 행성 조회 가능
+          allow get, list: if signedIn()
+          && request.auth.uid in
+          get(galaxyPath(galaxyId)).data.memberUids;
+
+          // 활성 은하계 구성원만 행성 생성 가능
+          allow create: if signedIn()
+
+          && request.auth.uid in
+          get(galaxyPath(galaxyId)).data.memberUids
+
+          && get(galaxyPath(galaxyId)).data.status == 'active'
+
+          && request.resource.data.keys().hasOnly([
+            'createdBy',
+            'planetAsset',
+            'photoCount',
+            'photos',
+            'createdAt'
+          ])
+
+          && request.resource.data.keys().hasAll([
+            'createdBy',
+            'planetAsset',
+            'photoCount',
+            'photos',
+            'createdAt'
+          ])
+
+          && request.resource.data.createdBy == request.auth.uid
+
+          && request.resource.data.planetAsset == 'planet_01'
+
+          && request.resource.data.photos is list
+
+          && request.resource.data.photoCount is int
+
+          && request.resource.data.photoCount >= 1
+
+          && request.resource.data.photoCount <= 100
+
+          && request.resource.data.photos.size()
+          == request.resource.data.photoCount
+
+          && request.resource.data.createdAt == request.time;
+
+          // 수정·삭제는 이후 기능에서 별도로 구현
+          allow update, delete: if false;
+        }
+
       }
     }
 
