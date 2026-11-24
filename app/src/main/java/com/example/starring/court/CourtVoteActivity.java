@@ -56,7 +56,9 @@ public class CourtVoteActivity extends AppCompatActivity {
     private TextView textPositionB;
 
     // 입장이 길면 접어 두고 "자세히보기"로 펼침
-    private static final int COLLAPSED_LINES = 3;
+    private static final int COLLAPSED_LINES = 2;            // 입장 글
+    private static final int SITUATION_COLLAPSED_LINES = 3;   // 갈등 상황 글
+    private TextView toggleSituation;
     private TextView toggleA;
     private TextView toggleB;
     private TextView textRemaining;
@@ -141,6 +143,7 @@ public class CourtVoteActivity extends AppCompatActivity {
         btnVoteB = findViewById(R.id.btnVoteB);
         btnReconcileGo = findViewById(R.id.btnReconcileGo);
 
+        toggleSituation = findViewById(R.id.toggleSituation);
         toggleA = findViewById(R.id.toggleA);
         toggleB = findViewById(R.id.toggleB);
         cardA = findViewById(R.id.cardA);
@@ -413,10 +416,10 @@ public class CourtVoteActivity extends AppCompatActivity {
         CourtPost post = currentPost;
         post.myVote = savedVote;
 
-        textTitle.setText("[" + post.title + "]");
-        textSituation.setText(post.situation);
-        bindCollapsible(textPositionA, toggleA, post.positionA);
-        bindCollapsible(textPositionB, toggleB, post.positionB);
+        textTitle.setText(post.title);
+        bindCollapsible(textSituation, toggleSituation, post.situation, SITUATION_COLLAPSED_LINES);
+        bindCollapsible(textPositionA, toggleA, post.positionA, COLLAPSED_LINES);
+        bindCollapsible(textPositionB, toggleB, post.positionB, COLLAPSED_LINES);
 
         CourtPostAdapter.bindRemaining(
                 textRemaining,
@@ -534,7 +537,8 @@ public class CourtVoteActivity extends AppCompatActivity {
     private void bindCollapsible(
             TextView body,
             TextView toggle,
-            String content) {
+            String content,
+            final int limit) {
 
         if (content != null && content.equals(body.getTag())) {
             return;
@@ -549,11 +553,11 @@ public class CourtVoteActivity extends AppCompatActivity {
         // 글이 화면에 배치된 뒤에야 줄 수를 알 수 있음
         body.post(() -> {
 
-            if (body.getLineCount() <= COLLAPSED_LINES) {
+            if (body.getLineCount() <= limit) {
                 return;
             }
 
-            body.setMaxLines(COLLAPSED_LINES);
+            body.setMaxLines(limit);
             body.setEllipsize(TextUtils.TruncateAt.END);
             toggle.setText(R.string.court_see_more);
             toggle.setVisibility(View.VISIBLE);
@@ -561,10 +565,10 @@ public class CourtVoteActivity extends AppCompatActivity {
             toggle.setOnClickListener(v -> {
 
                 boolean collapsed =
-                        body.getMaxLines() == COLLAPSED_LINES;
+                        body.getMaxLines() == limit;
 
                 body.setMaxLines(
-                        collapsed ? Integer.MAX_VALUE : COLLAPSED_LINES
+                        collapsed ? Integer.MAX_VALUE : limit
                 );
                 body.setEllipsize(
                         collapsed ? null : TextUtils.TruncateAt.END

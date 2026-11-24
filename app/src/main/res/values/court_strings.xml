@@ -20,7 +20,7 @@
     <string name="court_fill_all">모든 항목을 입력해 주세요</string>
     <string name="court_created">블랙홀이 생성되어 재판장에 올라갔어요</string>
 
-    <string name="court_vote_title">판결을 내려주세요</string>
+    <string name="court_vote_title">판결</string>
     <string name="court_position_a">A 입장</string>
     <string name="court_position_b">B 입장</string>
     <string name="court_anonymous_note">투표는 100% 익명으로 진행돼요</string>

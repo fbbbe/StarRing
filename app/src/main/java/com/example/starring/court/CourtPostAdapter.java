@@ -91,7 +91,7 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
     public void onBindViewHolder(@NonNull Holder holder, int position) {
         final CourtPost post = items.get(position);
 
-        holder.title.setText("[" + post.title + "]");
+        holder.title.setText(post.title);
         holder.bar.setProgress(post.percentA());
         holder.percentA.setText("A " + post.percentA() + "%");
         holder.percentB.setText("B " + post.percentB() + "%");

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- 앞 두 자리(E0)가 투명도: FF=완전 불투명, 숫자가 작을수록 배경이 더 비쳐요 -->
+    <solid android:color="#E01E1838" />
+    <corners android:radius="16dp" />
+    <stroke android:width="1dp" android:color="#3B3266" />
+</shape>
