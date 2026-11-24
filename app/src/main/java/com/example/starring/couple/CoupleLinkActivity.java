@@ -39,7 +39,7 @@ import java.util.Locale;
 /**
  * 커플 연동 화면. 은하계 상태에 따라 패널을 바꿔 보여준다.
  *
- *  CHOOSE  : 은하계 없음 → "새 은하계 만들기" 또는 "초대코드로 합류"
+ *  CHOOSE  : 은하계 없음 → "새 은하계 만들기"(만난 날 선택 후 생성) 또는 "초대코드로 합류"
  *  WAITING : 내가 만든 은하계에서 상대 대기 (코드 표시, 실시간 감지)
  *  NAMING  : 두 명이 모임 → 은하계 이름 설정 (먼저 저장한 사람의 이름 적용)
  *  ACTIVE  → 메인 화면으로 이동
@@ -49,6 +49,7 @@ import java.util.Locale;
 public class CoupleLinkActivity extends AppCompatActivity {
 
     private enum Panel { LOADING, CHOOSE, WAITING, NAMING }
+
 
     private final UserRepository userRepository = new UserRepository();
     private final GalaxyRepository galaxyRepository = new GalaxyRepository();
