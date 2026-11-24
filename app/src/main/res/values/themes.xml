@@ -30,8 +30,9 @@
     </style>
 
     <style name="TextAppearance.StarRing.Title" parent="TextAppearance.Material3.DisplaySmall">
+        <item name="android:fontFamily">@font/cormorant_garamond_medium</item>
         <item name="android:textColor">@color/star_gold</item>
-        <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">0.08</item>
+        <item name="android:textStyle">normal</item>
+        <item name="android:letterSpacing">0.14</item>
     </style>
 </resources>

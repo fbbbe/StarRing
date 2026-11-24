@@ -69,8 +69,8 @@ public class GalaxyLoadingActivity extends Activity {
         content.setPadding(30, 30, 30, 30);
 
         TextView title = new TextView(this);
-        title.setText("Star Ring");
-        title.setTextSize(32);
+        title.setText("StarRing");
+        title.setTextAppearance(R.style.TextAppearance_StarRing_Title);
         title.setTextColor(Color.rgb(218, 188, 255));
         title.setGravity(Gravity.CENTER);
         content.addView(title);
