@@ -7,6 +7,8 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
+import java.util.Calendar;
+import java.util.TimeZone;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -30,7 +32,8 @@ public class CourtReconcileActivity extends AppCompatActivity {
     public static final String EXTRA_POST_ID = "post_id";
 
     // 임시값: 추후 실제 은하계 애기별 수로 교체
-    private static final int AVAILABLE_STARS = 20;
+    private int availableStars = 0;
+    private String starsGalaxyId;
 
     private final FirebaseFirestore db =
             FirebaseFirestore.getInstance();
@@ -192,6 +195,7 @@ public class CourtReconcileActivity extends AppCompatActivity {
                     }
 
                     currentPost = readPost(snapshot);
+                    loadAvailableStars(snapshot.getString("galaxyId"));
 
                     if (!receivedFirstPost) {
                         wasResolved = currentPost.isResolved();
@@ -199,7 +203,6 @@ public class CourtReconcileActivity extends AppCompatActivity {
                     }
 
                     render();
-                    tryResolveIfBothWrote();
                 }
         );
 
@@ -364,13 +367,9 @@ public class CourtReconcileActivity extends AppCompatActivity {
                     setSaving(false);
                     submittedLocally = true;
 
-                    CourtNotice.show(
-                            this,
-                            "배운 점이 저장되었습니다."
-                    );
-
                     render();
                 })
+
                 .addOnFailureListener(this, error -> {
 
                     setSaving(false);
@@ -477,20 +476,38 @@ public class CourtReconcileActivity extends AppCompatActivity {
 
             return null;
 
+
         }).addOnCompleteListener(this, task -> {
 
             resolving = false;
 
             if (!task.isSuccessful()) {
-                CourtNotice.show(
-                        this,
-                        "화해 완료 처리 실패: "
-                                + task.getException()
-                );
-            }
 
-            // 성공하면 postListener가 resolvedAt 변경 감지
+                // 다른 기기에서 이미 화해 완료했을 수도 있으므로
+                // 서버의 최종 상태를 확인한 뒤 오류 표시
+                postRef.get(
+                        com.google.firebase.firestore.Source.SERVER
+                ).addOnSuccessListener(this, latest -> {
+
+                    if (latest.exists()
+                            && latest.getTimestamp("resolvedAt") == null) {
+
+                        CourtNotice.show(
+                                this,
+                                "화해 완료 상태를 저장하지 못했습니다."
+                        );
+                    }
+                }).addOnFailureListener(this, error -> {
+
+                    android.util.Log.w(
+                            "CourtReconcile",
+                            "화해 상태 확인 실패",
+                            error
+                    );
+                });
+            }
         });
+
     }
 
     // ==========================================
@@ -529,7 +546,7 @@ public class CourtReconcileActivity extends AppCompatActivity {
             CourtNotice.show(
                     this,
                     "삼켜졌던 별 "
-                            + post.returnedStars(AVAILABLE_STARS)
+                            + post.returnedStars(availableStars)
                             + "개가 돌아왔어요 ✨"
             );
         }
@@ -542,7 +559,7 @@ public class CourtReconcileActivity extends AppCompatActivity {
             );
 
             textSwallowed.setText(
-                    post.returnedStars(AVAILABLE_STARS)
+                    post.returnedStars(availableStars)
                             + "개"
             );
 
@@ -574,11 +591,11 @@ public class CourtReconcileActivity extends AppCompatActivity {
             );
 
             int swallowed =
-                    post.swallowedStars(AVAILABLE_STARS);
+                    post.swallowedStars(availableStars);
 
             textSwallowed.setText(swallowed + "개");
 
-            if (swallowed >= AVAILABLE_STARS) {
+            if (swallowed >= availableStars) {
 
                 textNext.setText(
                         R.string.court_reconcile_no_more
@@ -672,4 +689,93 @@ public class CourtReconcileActivity extends AppCompatActivity {
 
         super.onStop();
     }
+
+
+    private void loadAvailableStars(String galaxyId) {
+
+        if (galaxyId == null
+                || galaxyId.equals(starsGalaxyId)) {
+            return;
+        }
+
+        starsGalaxyId = galaxyId;
+
+        db.collection("galaxies")
+                .document(galaxyId)
+                .get()
+                .addOnSuccessListener(this, galaxy -> {
+
+                    if (!galaxy.exists()) {
+                        return;
+                    }
+
+                    String datingStartDate =
+                            galaxy.getString("datingStartDate");
+
+                    if (datingStartDate == null) {
+                        return;
+                    }
+
+                    try {
+
+                        String[] parts =
+                                datingStartDate.split("-");
+
+                        int year = Integer.parseInt(parts[0]);
+                        int month = Integer.parseInt(parts[1]);
+                        int day = Integer.parseInt(parts[2]);
+
+                        TimeZone utc =
+                                TimeZone.getTimeZone("UTC");
+
+                        Calendar start =
+                                Calendar.getInstance(utc);
+
+                        start.clear();
+                        start.setLenient(false);
+                        start.set(year, month - 1, day);
+
+                        Calendar localNow =
+                                Calendar.getInstance();
+
+                        Calendar today =
+                                Calendar.getInstance(utc);
+
+                        today.clear();
+                        today.set(
+                                localNow.get(Calendar.YEAR),
+                                localNow.get(Calendar.MONTH),
+                                localNow.get(Calendar.DAY_OF_MONTH)
+                        );
+
+                        long days =
+                                (today.getTimeInMillis()
+                                        - start.getTimeInMillis())
+                                        / 86400000L;
+
+                        availableStars = (int) Math.max(
+                                0L,
+                                Math.min(days, Integer.MAX_VALUE)
+                        );
+
+                        render();
+
+                    } catch (Exception e) {
+
+                        CourtNotice.show(
+                                this,
+                                "연애 시작일을 확인할 수 없습니다."
+                        );
+                    }
+                })
+                .addOnFailureListener(this, e -> {
+
+                    CourtNotice.show(
+                            this,
+                            "은하계 정보 조회 실패: "
+                                    + e.getMessage()
+                    );
+                });
+    }
+
 }

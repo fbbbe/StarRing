@@ -794,17 +794,36 @@ public final class CourtRepository {
 
             return null;
 
+
         }).continueWithTask(task -> {
 
+            // 배운 점 저장 자체가 실패한 경우
             if (!task.isSuccessful()) {
+                Exception error = task.getException();
+
                 return Tasks.forException(
-                        task.getException()
+                        error != null
+                                ? error
+                                : new IllegalStateException(
+                                "배운 점 저장에 실패했습니다."
+                        )
                 );
             }
 
-            // 두 사람 모두 작성했다면 화해 완료
-            return resolveIfBothWrote(postId);
+            // 저장은 성공했으므로 화해 완료 여부는 별도로 확인
+            resolveIfBothWrote(postId)
+                    .addOnFailureListener(error -> {
+                        Log.w(
+                                TAG,
+                                "배운 점 저장 성공, 화해 상태 갱신 실패",
+                                error
+                        );
+                    });
+
+            // 화면에는 배운 점 저장 성공을 반환
+            return Tasks.<Void>forResult(null);
         });
+
     }
 
     // ==========================================

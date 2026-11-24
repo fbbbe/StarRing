@@ -17,6 +17,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.example.starring.court.StarConsumption;
 
 import java.util.Calendar;
 import java.util.TimeZone;
@@ -27,6 +28,7 @@ import com.example.starring.court.CourtRepository;
 import com.example.starring.court.CourtPost;
 import com.example.starring.court.CourtVoteActivity;
 import java.util.List;
+
 
 public class GalaxyActivity extends Activity {
 
@@ -42,6 +44,12 @@ public class GalaxyActivity extends Activity {
     private ImageView btnSun;
 
     private boolean menuOpen = false;
+
+    // 재판 데이터가 변경되면 메인 은하계 갱신
+    private final Runnable courtObserver = () -> {
+        refreshCourtGalaxy();
+    };
+
 
     // 날짜 자동 갱신
     private final Handler handler =
@@ -81,6 +89,41 @@ public class GalaxyActivity extends Activity {
             handler.postDelayed(this, 1000);
         }
     };
+
+
+    // 현재 커플의 진행 중인 블랙홀 조회
+    private CourtPost getCurrentBlackhole() {
+
+        List<CourtPost> open =
+                CourtRepository.getMyPosts(false);
+
+        if (open.isEmpty()) {
+            return null;
+        }
+
+        // 최신 재판을 우선 표시
+        return open.get(0);
+    }
+
+    // Firestore에서 재판 정보가 변경되면 호출
+    private void refreshCourtGalaxy() {
+
+        if (galaxyView == null) {
+            return;
+        }
+
+        CourtPost post = getCurrentBlackhole();
+
+        // 진행 중인 재판이 있으면 블랙홀 표시
+        galaxyView.setBlackholeVisible(post != null);
+
+        // 블랙홀 하단 시간 표시
+        updateBlackholeLabel();
+
+        // 삼킨 별 개수도 다시 계산
+        updateGalaxy();
+    }
+
 
     private final Runnable dateChecker = new Runnable() {
         @Override
@@ -526,8 +569,39 @@ public class GalaxyActivity extends Activity {
         int constellationMask =
                 calculateConstellationMask(start, today);
 
-        // 기존 별 생성
-        galaxyView.setStarCounts(days, months);
+
+        // 원래 가지고 있는 애기별 개수
+        int originalBabyStars = days;
+
+        // 블랙홀이 삼킨 애기별 개수
+        int swallowedStars = 0;
+
+        CourtPost blackhole = getCurrentBlackhole();
+
+        if (blackhole != null
+                && blackhole.createdAt > 0L) {
+
+            swallowedStars = StarConsumption.swallowed(
+                    blackhole.createdAt,
+                    blackhole.resolvedAt,
+                    System.currentTimeMillis(),
+                    originalBabyStars
+            );
+        }
+
+        // 별 개수는 0보다 작아지지 않도록 제한
+        int remainingBabyStars = Math.max(
+                0,
+                originalBabyStars - swallowedStars
+        );
+
+        // 애기별은 삼킨 만큼 감소
+        // 큰 별은 기존 월별 생성 개수 유지
+        galaxyView.setStarCounts(
+                remainingBabyStars,
+                months
+        );
+
 
         // 기존 별자리 생성
         galaxyView.setConstellationMask(
@@ -545,27 +619,56 @@ public class GalaxyActivity extends Activity {
     // 7. 생명주기
     // ------------------------------------
 
-    // 진행 중인 내 블랙홀의 마감까지 남은 시간을 블랙홀 아래에 표시 - na
+
     private void updateBlackholeLabel() {
-        List<CourtPost> open = CourtRepository.getMyPosts(false);
-        if (open.isEmpty()) {
-            galaxyView.setBlackholeLabel(null, false);
+
+        CourtPost post = getCurrentBlackhole();
+
+        if (post == null) {
+
+            galaxyView.setBlackholeLabel(
+                    null,
+                    false
+            );
+
             return;
         }
-        CourtPost post = open.get(0);
-        galaxyView.setBlackholeLabel(
-                post.isExpired() ? "마감됨" : post.remainingClock(),
-                post.isUrgent());
+
+        if (post.isExpired()) {
+
+            galaxyView.setBlackholeLabel(
+                    "마감됨",
+                    false
+            );
+
+        } else {
+
+            galaxyView.setBlackholeLabel(
+                    post.remainingClock(),
+                    post.isUrgent()
+            );
+        }
     }
+
+
 
     @Override
     protected void onResume() {
         super.onResume();
-        CourtNotice.showPendingIfAny(this);
-        galaxyView.setBlackholeVisible(CourtRepository.hasOpenBlackhole()); // na 추가
-        handler.removeCallbacks(blackholeLabelTicker); // na 추가
-        handler.post(blackholeLabelTicker); // na 추가
 
+        CourtNotice.showPendingIfAny(this);
+
+        // Firebase 재판 데이터 변경 감지 등록
+        CourtRepository.addObserver(courtObserver);
+
+        // 현재 데이터 기준으로 바로 갱신
+        refreshCourtGalaxy();
+
+        // 블랙홀 남은 시간 1초마다 갱신
+        handler.removeCallbacks(blackholeLabelTicker);
+        handler.post(blackholeLabelTicker);
+
+        // 별 개수 1분마다 재계산
         handler.removeCallbacks(dateChecker);
         handler.post(dateChecker);
     }
@@ -573,10 +676,15 @@ public class GalaxyActivity extends Activity {
     @Override
     protected void onPause() {
 
+        // 화면이 보이지 않을 때 콜백 해제
+        CourtRepository.removeObserver(courtObserver);
+
         handler.removeCallbacks(dateChecker);
-        handler.removeCallbacks(blackholeLabelTicker); // na 추가
+        handler.removeCallbacks(blackholeLabelTicker);
+
         super.onPause();
     }
+
 
     // 뒤로가기 시 메뉴가 열려 있다면 닫기
     @Override
