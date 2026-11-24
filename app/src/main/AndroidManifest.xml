@@ -93,6 +93,10 @@
             android:name=".GalaxyActivity"
             android:exported="false"/>
 
+        <activity
+            android:name=".PlanetDetailActivity"
+            android:exported="false" />
+
     </application>
 
 </manifest>
