@@ -10,6 +10,8 @@ import android.os.SystemClock;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
 
+import java.util.Random;
+
 import androidx.annotation.NonNull;
 
 import com.example.starring.R;
@@ -20,7 +22,8 @@ import com.example.starring.R;
  * - 블랙홀 본체/원반/기류/불씨/파동/후광은 AVD(res/drawable/avd_blackhole.xml)가 그림
  *   (돌아가고 깜빡이는 움직임은 AVD 안에서 알아서 재생됨)
  * - 이 클래스는 AVD를 화면에 놓고, 아래 연출만 담당
- *   · 생성 시 회전하며 커지는 등장 애니메이션
+ *   · 생성 시 작았다가 커지는 등장 애니메이션 (회전 없음)
+ *   · 주변 별이 천천히 블랙홀로 빨려 들어가는 연출
  *   · 블랙홀 아래 타이머 표시 (둥둥 떠다니는 움직임은 뺐음)
  *
  * 모양/색/속도를 바꾸고 싶으면 avd_blackhole.xml, blackhole_vector.xml 을 수정.
@@ -45,6 +48,30 @@ public class BlackholeEffect {
     // 0.75 → 원반 가로폭 약 360dp / 0.6 → 약 290dp / 0.5 → 약 240dp
     private static final float VECTOR_SCALE = 0.6f;
 
+    // ------------------------------------
+    // 빨려 들어가는 별 (숫자만 바꿔서 느낌 조절)
+    // ------------------------------------
+
+    // 별 개수 (많을수록 북적임. 20~40 추천)
+    private static final int STAR_COUNT = 28;
+
+    // 별이 시작하는 거리 = 블랙홀 그림 반지름의 몇 배 (클수록 넓은 범위)
+    private static final float STAR_RANGE = 1.9f;
+
+    // 가장 밝은 별의 투명도 (0~1, 작을수록 보일락말락)
+    private static final float STAR_MAX_ALPHA = 0.55f;
+
+    // 한 개의 별이 바깥에서 블랙홀까지 가는 시간 범위 (ms, 길수록 천천히)
+    private static final int STAR_MIN_PERIOD_MS = 7000;
+    private static final int STAR_MAX_PERIOD_MS = 14000;
+
+    // 세로로 납작하게 (1.0 = 완전한 원, 작을수록 납작. 원반 기울기와 어울리게)
+    private static final float STAR_FLATTEN = 0.7f;
+
+    // 별 크기 범위 (dp)
+    private static final float STAR_MIN_DP = 0.8f;
+    private static final float STAR_MAX_DP = 2.2f;
+
     // 타이머 글자 크기 (기존 14 → 11). 더 줄이려면 10, 키우려면 12
     private static final float TIMER_TEXT_SP = 11f;
 
@@ -59,6 +86,18 @@ public class BlackholeEffect {
 
     private final Paint textPaint =
             new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private final Paint starPaint =
+            new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    // 별마다 다른 값 (생성할 때 한 번만 정하므로 언제 봐도 같은 모양)
+    private final float[] starAngle = new float[STAR_COUNT];
+    private final float[] starSpin = new float[STAR_COUNT];
+    private final float[] starOffset = new float[STAR_COUNT];
+    private final float[] starSize = new float[STAR_COUNT];
+    private final float[] starAlpha = new float[STAR_COUNT];
+    private final int[] starPeriod = new int[STAR_COUNT];
+    private final int[] starColor = new int[STAR_COUNT];
 
     private boolean visible = false;
     private boolean running = false;
@@ -157,6 +196,43 @@ public class BlackholeEffect {
         }
 
         this.drawable = d;
+
+        // ------------------------------------
+        // 별 값 정하기 (시드 고정 → 항상 같은 모양)
+        // ------------------------------------
+
+        int[] palette = {
+                0xFFFFFFFF, // 흰색
+                0xFFFFE6CC, // 따뜻한 흰색
+                0xFFCCDDFF, // 푸른 흰색
+                0xFFFFD0B0  // 연한 주황
+        };
+
+        Random random = new Random(20241124L);
+
+        for (int i = 0; i < STAR_COUNT; i++) {
+
+            starAngle[i] = random.nextFloat() * 6.2831855f;
+
+            // 안쪽으로 오면서 감기는 각도 (시계 방향)
+            starSpin[i] = 0.7f + random.nextFloat() * 0.9f;
+
+            starOffset[i] = random.nextFloat();
+
+            starSize[i] = (STAR_MIN_DP
+                    + random.nextFloat()
+                    * (STAR_MAX_DP - STAR_MIN_DP)) * density;
+
+            starAlpha[i] = 0.25f
+                    + random.nextFloat() * (STAR_MAX_ALPHA - 0.25f);
+
+            starPeriod[i] = STAR_MIN_PERIOD_MS
+                    + random.nextInt(
+                    STAR_MAX_PERIOD_MS - STAR_MIN_PERIOD_MS + 1
+            );
+
+            starColor[i] = palette[random.nextInt(palette.length)];
+        }
 
         // ------------------------------------
         // 타이머 글자 설정
@@ -320,6 +396,9 @@ public class BlackholeEffect {
         // 등장 중에는 커지면서(a) 회전
         float half = baseHalf * VECTOR_SCALE * a;
 
+        // 별은 블랙홀 뒤에 그려서 본체에 가려지며 빨려 들어가는 느낌
+        drawStars(canvas, bx, by, baseHalf, aClamped);
+
         drawable.setAlpha(
                 (int) (255 * aClamped)
         );
@@ -371,6 +450,73 @@ public class BlackholeEffect {
                     baseline,
                     textPaint
             );
+        }
+    }
+
+    // ------------------------------------
+    // 블랙홀로 빨려 들어가는 별
+    // ------------------------------------
+
+    /**
+     * 각 별은 "바깥 → 블랙홀"을 한 번 가는 동안
+     * 천천히 나타나고, 점점 빨라지며 작아지고, 가까워지면 사라짐.
+     * 시계 시간으로 위치를 계산하므로 따로 상태를 저장하지 않음.
+     */
+    private void drawStars(
+            Canvas canvas,
+            float cx,
+            float cy,
+            float baseHalf,
+            float appearAlpha) {
+
+        long now = SystemClock.uptimeMillis();
+
+        float outer = baseHalf * VECTOR_SCALE * STAR_RANGE;
+        float inner = baseHalf * VECTOR_SCALE * 0.28f;
+
+        for (int i = 0; i < STAR_COUNT; i++) {
+
+            // 0 (바깥) → 1 (블랙홀)
+            float t = ((now % starPeriod[i])
+                    / (float) starPeriod[i]
+                    + starOffset[i]) % 1f;
+
+            // 처음엔 천천히, 가까워질수록 빨라짐
+            float ease = t * t;
+
+            float radius = outer + (inner - outer) * ease;
+
+            float angle = starAngle[i] + starSpin[i] * t;
+
+            float x = cx + radius * (float) Math.cos(angle);
+            float y = cy + radius * (float) Math.sin(angle)
+                    * STAR_FLATTEN;
+
+            // 나타날 때 서서히, 사라질 때 서서히
+            float fadeIn = Math.min(1f, t / 0.25f);
+            float fadeOut = Math.min(1f, (1f - t) / 0.3f);
+
+            float alpha = starAlpha[i]
+                    * fadeIn * fadeOut * appearAlpha;
+
+            if (alpha <= 0.01f) {
+                continue;
+            }
+
+            // 가까워질수록 작아짐
+            float size = starSize[i] * (1f - 0.5f * t);
+
+            starPaint.setColor(starColor[i]);
+
+            // 큰 별은 은은한 빛무리를 한 겹 더
+            if (starSize[i] > 1.6f * density) {
+
+                starPaint.setAlpha((int) (255 * alpha * 0.25f));
+                canvas.drawCircle(x, y, size * 2.4f, starPaint);
+            }
+
+            starPaint.setAlpha((int) (255 * alpha));
+            canvas.drawCircle(x, y, size, starPaint);
         }
     }
 
