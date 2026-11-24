@@ -37,6 +37,8 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.Source;
 
 import org.json.JSONObject;
 
@@ -62,6 +64,15 @@ import java.util.concurrent.Executors;
 public class PlanetCreateActivity extends AppCompatActivity {
 
     private static final int MAX_PHOTOS = 100;
+
+    private static final String[] PLANET_ASSETS = {
+            "planet_01",
+            "planet_02",
+            "planet_03",
+            "planet_04",
+            "planet_05",
+            "planet_06"
+    };
 
     // Cloudinary 설정값으로 변경할 것
     private static final String CLOUD_NAME =
@@ -122,12 +133,26 @@ public class PlanetCreateActivity extends AppCompatActivity {
         }
     }
 
+    public static final String EXTRA_PLANET_ID =
+            "target_planet_id";
+
+    private String existingPlanetId;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // 기존 행성에 사진을 추가하는 경우에만 ID 전달됨
+        existingPlanetId = getIntent()
+                .getStringExtra(EXTRA_PLANET_ID);
+
         createScreen();
         refreshSelection();
+
+        if (existingPlanetId != null
+                && !existingPlanetId.isEmpty()) {
+            btnComplete.setText("사진 추가 완료");
+        }
     }
 
     // -----------------------------------------
@@ -765,8 +790,8 @@ public class PlanetCreateActivity extends AppCompatActivity {
                     );
                 }
 
-                Object members =
-                        galaxy.get("memberUids");
+
+                Object members = galaxy.get("memberUids");
 
                 if (!(members instanceof List)
                         || !((List<?>) members).contains(uid)) {
@@ -775,6 +800,54 @@ public class PlanetCreateActivity extends AppCompatActivity {
                             "은하계에 접근할 권한이 없습니다."
                     );
                 }
+
+// 기존 행성에 사진을 추가하는 경우를 위한 참조
+                final DocumentReference existingPlanetRef;
+
+                if (existingPlanetId != null
+                        && !existingPlanetId.isEmpty()) {
+
+                    existingPlanetRef = db.collection("galaxies")
+                            .document(galaxyId)
+                            .collection("planets")
+                            .document(existingPlanetId);
+
+                    // Cloudinary 업로드 전에 기존 행성 확인
+                    DocumentSnapshot existing = Tasks.await(
+                            existingPlanetRef.get(Source.SERVER)
+                    );
+
+                    if (!existing.exists()) {
+                        throw new Exception(
+                                "기존 행성을 찾을 수 없습니다."
+                        );
+                    }
+
+                    Object rawPhotos = existing.get("photos");
+
+                    if (!(rawPhotos instanceof List)) {
+                        throw new Exception(
+                                "기존 사진 목록이 올바르지 않습니다."
+                        );
+                    }
+
+                    int existingCount =
+                            ((List<?>) rawPhotos).size();
+
+                    // 기존 사진 + 새 사진 최대 100장
+                    if (existingCount + items.size() > MAX_PHOTOS) {
+                        throw new Exception(
+                                "사진은 최대 100장까지 추가할 수 있습니다. "
+                                        + "현재 " + existingCount + "장입니다."
+                        );
+                    }
+
+                } else {
+
+                    // 새로운 행성 생성
+                    existingPlanetRef = null;
+                }
+
 
                 // 선택한 사진을 하나씩 Cloudinary에 업로드
                 ArrayList<Map<String, Object>> uploaded =
@@ -823,33 +896,112 @@ public class PlanetCreateActivity extends AppCompatActivity {
                         )
                 );
 
-                // 한 개의 행성 문서에 최대 100장 저장
-                Map<String, Object> planet =
-                        new HashMap<>();
 
-                planet.put("createdBy", uid);
-                planet.put("planetAsset", "planet_01");
-                planet.put("photoCount", uploaded.size());
-                planet.put("photos", uploaded);
+                if (existingPlanetRef == null) {
 
-                planet.put(
-                        "createdAt",
-                        FieldValue.serverTimestamp()
-                );
+                    // ==================================
+                    // 새로운 행성 생성
+                    // ==================================
 
-                Tasks.await(
-                        db.collection("galaxies")
-                                .document(galaxyId)
-                                .collection("planets")
-                                .document()
-                                .set(planet)
-                );
+                    Map<String, Object> planet =
+                            new HashMap<>();
+
+                    planet.put("createdBy", uid);
+
+                    // planet_01 ~ planet_06 랜덤 선택
+                    int randomIndex = new java.util.Random()
+                            .nextInt(PLANET_ASSETS.length);
+
+                    planet.put(
+                            "planetAsset",
+                            PLANET_ASSETS[randomIndex]
+                    );
+
+                    planet.put("photoCount", uploaded.size());
+                    planet.put("photos", uploaded);
+
+                    planet.put(
+                            "createdAt",
+                            FieldValue.serverTimestamp()
+                    );
+
+                    Tasks.await(
+                            db.collection("galaxies")
+                                    .document(galaxyId)
+                                    .collection("planets")
+                                    .document()
+                                    .set(planet)
+                    );
+
+                } else {
+
+                    // ==================================
+                    // 기존 행성에 사진 추가
+                    // ==================================
+
+                    Tasks.await(
+                            db.runTransaction(transaction -> {
+
+                                DocumentSnapshot existing =
+                                        transaction.get(
+                                                existingPlanetRef
+                                        );
+
+                                if (!existing.exists()) {
+                                    throw new IllegalStateException(
+                                            "행성을 찾을 수 없습니다."
+                                    );
+                                }
+
+                                Object rawPhotos =
+                                        existing.get("photos");
+
+                                if (!(rawPhotos instanceof List)) {
+                                    throw new IllegalStateException(
+                                            "사진 목록이 올바르지 않습니다."
+                                    );
+                                }
+
+                                // 기존 사진 목록 복사
+                                ArrayList<Object> merged =
+                                        new ArrayList<>(
+                                                (List<?>) rawPhotos
+                                        );
+
+                                // 동시 추가 상황에서도 100장 확인
+                                if (merged.size()
+                                        + uploaded.size() > MAX_PHOTOS) {
+
+                                    throw new IllegalStateException(
+                                            "행성 사진은 최대 100장입니다."
+                                    );
+                                }
+
+                                // 기존 사진 뒤에 새 사진 추가
+                                merged.addAll(uploaded);
+
+                                transaction.update(
+                                        existingPlanetRef,
+                                        "photos", merged,
+                                        "photoCount", merged.size(),
+                                        "updatedAt",
+                                        FieldValue.serverTimestamp()
+                                );
+
+                                return null;
+                            })
+                    );
+                }
 
                 runOnUiThread(() -> {
 
                     saving = false;
 
-                    message("행성이 생성되었습니다.");
+                    message(
+                            existingPlanetId == null
+                                    ? "행성이 생성되었습니다."
+                                    : "사진이 추가되었습니다."
+                    );
 
                     setResult(RESULT_OK);
                     finish();
@@ -880,7 +1032,11 @@ public class PlanetCreateActivity extends AppCompatActivity {
         editCaption.setEnabled(!busy);
 
         btnComplete.setText(
-                busy ? "업로드 중..." : "완료"
+                busy
+                        ? "업로드 중..."
+                        : existingPlanetId == null
+                          ? "완료"
+                          : "사진 추가 완료"
         );
 
         if (!busy) {

@@ -863,7 +863,9 @@ service cloud.firestore {
           )
         );
 
+        // 투표 기록은 생성 후 수정·삭제 불가
         allow update, delete: if false;
+
       }
 
 
@@ -952,7 +954,16 @@ service cloud.firestore {
 
       && request.resource.data.createdBy == request.auth.uid
 
-      && request.resource.data.planetAsset == 'planet_01'
+
+      && request.resource.data.planetAsset in [
+        'planet_01',
+        'planet_02',
+        'planet_03',
+        'planet_04',
+        'planet_05',
+        'planet_06'
+      ]
+
 
       && request.resource.data.photos is list
 
@@ -968,17 +979,68 @@ service cloud.firestore {
       && request.resource.data.createdAt == request.time;
 
       // 행성 수정 및 삭제는 추후 구현
-      allow update, delete: if false;
+
+      // 행성 사진 정보 수정 및 사진 추가
+      allow update: if signedIn()
+
+      && exists(galaxyPath(galaxyId))
+
+      && get(galaxyPath(galaxyId)).data.status == 'active'
+
+      && request.auth.uid in
+      get(galaxyPath(galaxyId)).data.memberUids
+
+      // 수정 가능한 최상위 필드 제한
+      && onlyChanges([
+        'photos',
+        'photoCount',
+        'updatedAt'
+      ])
+
+      && resource.data.photos is list
+      && request.resource.data.photos is list
+      && request.resource.data.photoCount is int
+
+      // 사진 개수 검증
+      && request.resource.data.photoCount
+      == request.resource.data.photos.size()
+
+      && request.resource.data.photoCount >= 1
+      && request.resource.data.photoCount <= 100
+
+      // 기존 사진 설명·날짜 수정 또는 새 사진 추가
+      && (
+        (
+          request.resource.data.photoCount
+          == resource.data.photoCount
+
+          && request.resource.data.photos.size()
+          == resource.data.photos.size()
+        )
+        ||
+        (
+          request.resource.data.photoCount
+          > resource.data.photoCount
+
+          // 추가할 때 기존 사진 기록 유지
+          && request.resource.data.photos.hasAll(
+            resource.data.photos
+          )
+        )
+      )
+
+      && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+
+
     }
 
-<<<<<<< HEAD
-  } // documents 종료
 
-} // service 종료
-=======
-    // ───────────────────────── 임시 허용 (팀원 담당 컬렉션) ─────────────────────────
-    // ⚠ 임시 규칙: 각 담당자가 규칙을 추가하면 삭제할 것.
-    //   로그인 사용자면 누구나 읽기/쓰기 가능 (하위 컬렉션 포함) → 실제 서비스 전에 반드시 교체.
+    // ==================================
+    // 9. 팀원 담당 컬렉션 임시 규칙
+    // ==================================
+
     match /planets/{document=**} {
       allow read, write: if signedIn();
     }
@@ -995,11 +1057,12 @@ service cloud.firestore {
       allow read, write: if signedIn();
     }
 
-    // Auth/Firestore 연결 테스트용 (문서 ID = uid). 자기 문서만.
-    // ⚠ 임시 규칙: 테스트 화면을 없애면 삭제할 것.
+    // Firebase 연결 테스트용
     match /connection_tests/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
+      allow read, write: if signedIn()
+      && request.auth.uid == uid;
     }
-  }
-}
->>>>>>> 3a67df782fa00472f4a00a2b2d9c0a65842f7b41
+
+  } // documents 종료
+
+} // service 종료
