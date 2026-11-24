@@ -41,12 +41,25 @@ public final class GalaxyDates {
         if (galaxy == null || !galaxy.exists()) {
             return null;
         }
-        Timestamp startDate = galaxy.getTimestamp(FirestoreSchema.GALAXY_START_DATE);
+        LocalDate dating = parseDate(galaxy.getString(FirestoreSchema.GALAXY_DATING_START_DATE));
+        if (dating != null) {
+            return dating;
+        }
         Timestamp bornAt = galaxy.getTimestamp(FirestoreSchema.GALAXY_BORN_AT);
-        return effectiveStart(
-                startDate == null ? null : startDate.toDate(),
-                bornAt == null ? null : bornAt.toDate(),
-                ZoneId.systemDefault());
+        return effectiveStart(null, bornAt == null ? null : bornAt.toDate(), ZoneId.systemDefault());
+    }
+
+    /** "yyyy-MM-dd" → 날짜. 형식이 틀리거나 없는 날짜(2024-02-31)면 null. */
+    @Nullable
+    public static LocalDate parseDate(@Nullable String yyyyMMdd) {
+        if (yyyyMMdd == null || !yyyyMMdd.matches("\\d{4}-\\d{2}-\\d{2}")) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(yyyyMMdd);
+        } catch (java.time.format.DateTimeParseException e) {
+            return null;
+        }
     }
 
     /**

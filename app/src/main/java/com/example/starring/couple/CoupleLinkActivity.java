@@ -144,12 +144,6 @@ public class CoupleLinkActivity extends AppCompatActivity {
             FirebaseAuth.getInstance().signOut();
             Navigator.toLogin(this);
         });
-
-        // 화면 회전 등으로 다시 만들어진 날짜 선택기에 리스너 재연결 (리스너는 보존되지 않음)
-        Fragment picker = getSupportFragmentManager().findFragmentByTag(TAG_START_DATE_PICKER);
-        if (picker instanceof MaterialDatePicker) {
-            attachStartDateListener((MaterialDatePicker<?>) picker);
-        }
     }
 
     @Override
