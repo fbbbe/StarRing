@@ -382,8 +382,13 @@ public class GalaxyActivity extends Activity {
         switch (index) {
 
             case 0:
-                // 수성 - 기능 없음
-                showComingSoon("수성");
+                // 수성 - 행성 생성 화면
+                startActivity(
+                        new Intent(
+                                this,
+                                PlanetCreateActivity.class
+                        )
+                );
                 break;
 
             case 1:
