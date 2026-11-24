@@ -320,10 +320,6 @@ public class BlackholeEffect {
         // 등장 중에는 커지면서(a) 회전
         float half = baseHalf * VECTOR_SCALE * a;
 
-        // 등장 애니메이션 회전 각도
-        float angle =
-                (1f - aClamped) * 270f;
-
         drawable.setAlpha(
                 (int) (255 * aClamped)
         );
@@ -335,17 +331,7 @@ public class BlackholeEffect {
                 Math.round(by + half)
         );
 
-        canvas.save();
-
-        canvas.rotate(
-                angle,
-                bx,
-                by
-        );
-
         drawable.draw(canvas);
-
-        canvas.restore();
 
         // ------------------------------------
         // 2. 블랙홀 아래 타이머
