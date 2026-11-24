@@ -9,24 +9,23 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 
 /**
- * 만난 날(startDate) 기준 날짜 계산. 별 개수 / 별자리 / D-day는 전부 여기서 계산한다.
- * (DB에는 startDate만 저장하고 나머지는 저장하지 않는다 — CLAUDE.md 설계 규칙)
+ * 만난 날(datingStartDate) 기준 날짜 계산. 별 개수 / 별자리 / D-day는 전부 여기서 계산한다.
+ * (DB에는 datingStartDate만 저장하고 나머지는 저장하지 않는다 — CLAUDE.md 설계 규칙)
  *
- * GalaxyActivity.updateGalaxy()의 계산을 그대로 옮긴 것. 연결할 때는
- *   LocalDate start = GalaxyDates.effectiveStart(galaxySnapshot);
+ * datingStartDate는 "yyyy-MM-dd" 문자열 (시간대 없는 날짜). 사용 예:
+ *   LocalDate start = GalaxyDates.effectiveStart(galaxySnapshot);   // 또는 parseDate(문자열)
  *   if (start == null) return;            // 아직 기준일 없음 → 그리지 않고 대기
  *   LocalDate today = GalaxyDates.today();
  *   galaxyView.setStarCounts(GalaxyDates.elapsedDays(start, today),
  *                            GalaxyDates.elapsedMonths(start, today));
  *   galaxyView.setConstellationMask(GalaxyDates.constellationMask(start, today));
- * 처럼 START_YEAR/MONTH/DAY 하드코딩 자리만 바꾸면 된다.
  *
- * Android/Firebase에 의존하지 않는 메서드(LocalDate 인자)는 로컬 유닛 테스트 대상.
+ * Android/Firebase에 의존하지 않는 메서드(LocalDate·String 인자)는 로컬 유닛 테스트 대상.
  */
 public final class GalaxyDates {
 
@@ -35,18 +34,37 @@ public final class GalaxyDates {
 
     // ───────────────────────── 기준일 ─────────────────────────
 
-    /** 은하계 문서에서 기준일을 꺼낸다. 기기 시간대 기준. */
+    /** 은하계 문서에서 기준일을 꺼낸다. bornAt 대체 시에는 기기 시간대 기준. */
     @Nullable
     public static LocalDate effectiveStart(@Nullable DocumentSnapshot galaxy) {
         if (galaxy == null || !galaxy.exists()) {
             return null;
         }
-        LocalDate dating = parseDate(galaxy.getString(FirestoreSchema.GALAXY_DATING_START_DATE));
+        Timestamp bornAt = galaxy.getTimestamp(FirestoreSchema.GALAXY_BORN_AT);
+        return effectiveStart(
+                galaxy.getString(FirestoreSchema.GALAXY_DATING_START_DATE),
+                bornAt == null ? null : bornAt.toDate(),
+                ZoneId.systemDefault());
+    }
+
+    /**
+     * 기준일 결정.
+     * 1) datingStartDate("yyyy-MM-dd")가 올바르면 그 날짜 (시간대 무관)
+     * 2) 없거나 깨진 값이면(datingStartDate 도입 전 은하계) bornAt을 zone 기준 날짜로
+     * 3) 둘 다 없으면 null (serverTimestamp 확정 전 등) → 호출부는 그리지 않고 대기
+     */
+    @Nullable
+    public static LocalDate effectiveStart(@Nullable String datingStartDate,
+                                           @Nullable Date bornAt,
+                                           ZoneId zone) {
+        LocalDate dating = parseDate(datingStartDate);
         if (dating != null) {
             return dating;
         }
-        Timestamp bornAt = galaxy.getTimestamp(FirestoreSchema.GALAXY_BORN_AT);
-        return effectiveStart(null, bornAt == null ? null : bornAt.toDate(), ZoneId.systemDefault());
+        if (bornAt != null) {
+            return Instant.ofEpochMilli(bornAt.getTime()).atZone(zone).toLocalDate();
+        }
+        return null;
     }
 
     /** "yyyy-MM-dd" → 날짜. 형식이 틀리거나 없는 날짜(2024-02-31)면 null. */
@@ -56,39 +74,15 @@ public final class GalaxyDates {
             return null;
         }
         try {
-            return LocalDate.parse(yyyyMMdd);
-        } catch (java.time.format.DateTimeParseException e) {
+            return LocalDate.parse(yyyyMMdd);   // ISO_LOCAL_DATE: 2/31 같은 날짜는 예외
+        } catch (DateTimeParseException e) {
             return null;
         }
     }
 
-    /**
-     * 기준일 결정.
-     * 1) startDate(UTC 00:00으로 저장된 만난 날) → 그 UTC 날짜
-     * 2) 없으면(startDate 도입 전 은하계) bornAt을 zone 기준 날짜로
-     * 3) 둘 다 없으면 null (이름 설정 전이거나 serverTimestamp 확정 전) → 호출부는 그리지 않고 대기
-     */
-    @Nullable
-    public static LocalDate effectiveStart(@Nullable Date startDateUtcMidnight,
-                                           @Nullable Date bornAt,
-                                           ZoneId zone) {
-        if (startDateUtcMidnight != null) {
-            return utcDateOf(startDateUtcMidnight.getTime());
-        }
-        if (bornAt != null) {
-            return Instant.ofEpochMilli(bornAt.getTime()).atZone(zone).toLocalDate();
-        }
-        return null;
-    }
-
-    /** UTC 00:00 millis → 날짜 (startDate 저장 형식) */
-    public static LocalDate utcDateOf(long utcMillis) {
-        return Instant.ofEpochMilli(utcMillis).atZone(ZoneOffset.UTC).toLocalDate();
-    }
-
-    /** 날짜 → UTC 00:00 millis (startDate 저장 형식) */
-    public static long toUtcMidnightMillis(LocalDate date) {
-        return date.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli();
+    /** 날짜 → "yyyy-MM-dd" (datingStartDate 저장 형식) */
+    public static String formatDate(LocalDate date) {
+        return date.toString();
     }
 
     /** 오늘 날짜 (기기 시간대). GalaxyActivity와 같은 기준. */

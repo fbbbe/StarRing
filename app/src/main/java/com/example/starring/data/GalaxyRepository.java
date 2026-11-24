@@ -3,11 +3,11 @@ package com.example.starring.data;
 import com.example.starring.couple.CoupleLinkException;
 import com.example.starring.couple.CoupleLinkException.Reason;
 import com.example.starring.couple.InviteCode;
+import com.example.starring.common.GalaxyDates;
 import com.example.starring.couple.StartDatePolicy;
 import com.example.starring.data.FirestoreSchema.GalaxyStatus;
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
-import com.google.firebase.Timestamp;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
@@ -78,16 +78,19 @@ public class GalaxyRepository {
             String datingStartDate) {
 
         if (galaxyName == null
-                || galaxyName.trim().isEmpty()
-                || datingStartDate == null
-                || !datingStartDate.matches(
-                "\\d{4}-\\d{2}-\\d{2}")) {
+                || galaxyName.trim().isEmpty()) {
 
             return Tasks.forException(
                     new IllegalArgumentException(
                             "은하계 이름과 만난 날짜를 확인해주세요."
                     )
             );
+        }
+
+        // rules는 형식만 검사 → 없는 날짜(2/31)·1950년 이전·미래는 앱에서 막는다
+        if (!StartDatePolicy.isValid(datingStartDate, GalaxyDates.today())) {
+            return Tasks.forException(
+                    new CoupleLinkException(Reason.INVALID_START_DATE));
         }
 
         return createGalaxyAttempt(
@@ -514,6 +517,11 @@ public class GalaxyRepository {
             String uid,
             String galaxyId,
             String datingStartDate) {
+
+        if (!StartDatePolicy.isValid(datingStartDate, GalaxyDates.today())) {
+            return Tasks.forException(
+                    new CoupleLinkException(Reason.INVALID_START_DATE));
+        }
 
         final DocumentReference ref = galaxyRef(galaxyId);
 

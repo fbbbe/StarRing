@@ -12,7 +12,6 @@ import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
 
 import com.example.starring.R;
 import com.example.starring.common.ErrorMessages;
@@ -23,11 +22,6 @@ import com.example.starring.data.FirestoreSchema.GalaxyStatus;
 import com.example.starring.data.GalaxyRepository;
 import com.example.starring.data.UserRepository;
 import com.google.android.material.button.MaterialButton;
-import com.google.android.material.datepicker.CalendarConstraints;
-import com.google.android.material.datepicker.CompositeDateValidator;
-import com.google.android.material.datepicker.DateValidatorPointBackward;
-import com.google.android.material.datepicker.DateValidatorPointForward;
-import com.google.android.material.datepicker.MaterialDatePicker;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
@@ -38,7 +32,6 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -57,7 +50,6 @@ public class CoupleLinkActivity extends AppCompatActivity {
 
     private enum Panel { LOADING, CHOOSE, WAITING, NAMING }
 
-    private static final String TAG_START_DATE_PICKER = "startDatePicker";
 
     private final UserRepository userRepository = new UserRepository();
     private final GalaxyRepository galaxyRepository = new GalaxyRepository();

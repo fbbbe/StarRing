@@ -23,20 +23,25 @@ public class GalaxyDatesTest {
     // ───────── 기준일 ─────────
 
     @Test
-    public void effectiveStart_prefersStartDate() {
-        Date start = new Date(GalaxyDates.toUtcMidnightMillis(d(2024, 5, 12)));
+    public void effectiveStart_prefersDatingStartDate() {
         Date bornAt = Date.from(ZonedDateTime.of(2026, 11, 19, 10, 0, 0, 0, KST).toInstant());
-        assertEquals(d(2024, 5, 12), GalaxyDates.effectiveStart(start, bornAt, KST));
+        assertEquals(d(2024, 5, 12), GalaxyDates.effectiveStart("2024-05-12", bornAt, KST));
     }
 
     @Test
-    public void effectiveStart_startDateIgnoresDeviceZone() {
-        // UTC 00:00 저장값은 어느 시간대 기기에서 읽어도 같은 날짜
-        Date start = new Date(GalaxyDates.toUtcMidnightMillis(d(2024, 5, 12)));
+    public void effectiveStart_datingStartDateIgnoresDeviceZone() {
+        // 문자열 날짜는 어느 시간대 기기에서 읽어도 같은 날짜
         assertEquals(d(2024, 5, 12),
-                GalaxyDates.effectiveStart(start, null, ZoneId.of("America/Los_Angeles")));
+                GalaxyDates.effectiveStart("2024-05-12", null, ZoneId.of("America/Los_Angeles")));
         assertEquals(d(2024, 5, 12),
-                GalaxyDates.effectiveStart(start, null, ZoneId.of("Pacific/Kiritimati")));
+                GalaxyDates.effectiveStart("2024-05-12", null, ZoneId.of("Pacific/Kiritimati")));
+    }
+
+    @Test
+    public void effectiveStart_brokenDatingStartDateFallsBackToBornAt() {
+        Date bornAt = Date.from(ZonedDateTime.of(2026, 11, 20, 12, 0, 0, 0, KST).toInstant());
+        assertEquals(d(2026, 11, 20), GalaxyDates.effectiveStart("2024-02-31", bornAt, KST));
+        assertEquals(d(2026, 11, 20), GalaxyDates.effectiveStart("", bornAt, KST));
     }
 
     @Test
@@ -48,14 +53,40 @@ public class GalaxyDatesTest {
 
     @Test
     public void effectiveStart_nullWhenNothing() {
-        assertNull(GalaxyDates.effectiveStart(null, null, KST));
+        assertNull(GalaxyDates.effectiveStart((String) null, null, KST));
+    }
+
+    // ───────── 문자열 변환 ─────────
+
+    @Test
+    public void parseDate_valid() {
+        assertEquals(d(2024, 2, 29), GalaxyDates.parseDate("2024-02-29"));
+        assertEquals(d(1950, 1, 1), GalaxyDates.parseDate("1950-01-01"));
     }
 
     @Test
-    public void utcMidnight_roundTrip() {
-        LocalDate date = d(1950, 1, 1);
-        assertEquals(date, GalaxyDates.utcDateOf(GalaxyDates.toUtcMidnightMillis(date)));
-        assertEquals(-631152000000L, GalaxyDates.toUtcMidnightMillis(date));
+    public void parseDate_rejectsNonexistentDates() {
+        assertNull(GalaxyDates.parseDate("2024-02-31"));
+        assertNull(GalaxyDates.parseDate("2023-02-29"));  // 평년
+        assertNull(GalaxyDates.parseDate("2024-13-01"));
+        assertNull(GalaxyDates.parseDate("2024-00-10"));
+    }
+
+    @Test
+    public void parseDate_rejectsBadFormat() {
+        assertNull(GalaxyDates.parseDate(null));
+        assertNull(GalaxyDates.parseDate(""));
+        assertNull(GalaxyDates.parseDate("2024-5-12"));
+        assertNull(GalaxyDates.parseDate("2024/05/12"));
+        assertNull(GalaxyDates.parseDate(" 2024-05-12"));
+        assertNull(GalaxyDates.parseDate("+2024-05-12"));
+    }
+
+    @Test
+    public void formatDate_roundTrip() {
+        assertEquals("2024-05-12", GalaxyDates.formatDate(d(2024, 5, 12)));
+        assertEquals("1950-01-01", GalaxyDates.formatDate(d(1950, 1, 1)));
+        assertEquals(d(2024, 5, 12), GalaxyDates.parseDate(GalaxyDates.formatDate(d(2024, 5, 12))));
     }
 
     // ───────── 일수 ─────────
