@@ -910,86 +910,67 @@ service cloud.firestore {
         allow update, delete: if false;
 
 
-        // ───────────────────────── 행성 생성 ─────────────────────────
+      } // lessons 규칙 종료
 
-        match /galaxies/{galaxyId}/planets/{planetId} {
+    } // courtPosts 규칙 종료
 
-          // 같은 은하계의 커플만 행성 조회 가능
-          allow get, list: if signedIn()
-          && request.auth.uid in
-          get(galaxyPath(galaxyId)).data.memberUids;
 
-          // 활성 은하계 구성원만 행성 생성 가능
-          allow create: if signedIn()
+    // ==================================
+    // 8. 행성 생성 및 사진 저장
+    // ==================================
 
-          && request.auth.uid in
-          get(galaxyPath(galaxyId)).data.memberUids
+    match /galaxies/{galaxyId}/planets/{planetId} {
 
-          && get(galaxyPath(galaxyId)).data.status == 'active'
+      // 같은 은하계의 커플만 행성 조회 가능
+      allow get, list: if signedIn()
+      && request.auth.uid in
+      get(galaxyPath(galaxyId)).data.memberUids;
 
-          && request.resource.data.keys().hasOnly([
-            'createdBy',
-            'planetAsset',
-            'photoCount',
-            'photos',
-            'createdAt'
-          ])
+      // 활성 은하계 구성원만 행성 생성 가능
+      allow create: if signedIn()
 
-          && request.resource.data.keys().hasAll([
-            'createdBy',
-            'planetAsset',
-            'photoCount',
-            'photos',
-            'createdAt'
-          ])
+      && request.auth.uid in
+      get(galaxyPath(galaxyId)).data.memberUids
 
-          && request.resource.data.createdBy == request.auth.uid
+      && get(galaxyPath(galaxyId)).data.status == 'active'
 
-          && request.resource.data.planetAsset == 'planet_01'
+      && request.resource.data.keys().hasOnly([
+        'createdBy',
+        'planetAsset',
+        'photoCount',
+        'photos',
+        'createdAt'
+      ])
 
-          && request.resource.data.photos is list
+      && request.resource.data.keys().hasAll([
+        'createdBy',
+        'planetAsset',
+        'photoCount',
+        'photos',
+        'createdAt'
+      ])
 
-          && request.resource.data.photoCount is int
+      && request.resource.data.createdBy == request.auth.uid
 
-          && request.resource.data.photoCount >= 1
+      && request.resource.data.planetAsset == 'planet_01'
 
-          && request.resource.data.photoCount <= 100
+      && request.resource.data.photos is list
 
-          && request.resource.data.photos.size()
-          == request.resource.data.photoCount
+      && request.resource.data.photoCount is int
 
-          && request.resource.data.createdAt == request.time;
+      && request.resource.data.photoCount >= 1
 
-          // 수정·삭제는 이후 기능에서 별도로 구현
-          allow update, delete: if false;
-        }
+      && request.resource.data.photoCount <= 100
 
-      }
+      && request.resource.data.photos.size()
+      == request.resource.data.photoCount
+
+      && request.resource.data.createdAt == request.time;
+
+      // 행성 수정 및 삭제는 추후 구현
+      allow update, delete: if false;
     }
 
-    // ───────────────────────── 임시 허용 (팀원 담당 컬렉션) ─────────────────────────
-    // ⚠ 임시 규칙: 각 담당자가 규칙을 추가하면 삭제할 것.
-    //   로그인 사용자면 누구나 읽기/쓰기 가능 (하위 컬렉션 포함) → 실제 서비스 전에 반드시 교체.
-    match /planets/{document=**} {
-      allow read, write: if signedIn();
-    }
+  } // documents 종료
 
-    match /blackholes/{document=**} {
-      allow read, write: if signedIn();
-    }
-
-    match /trials/{document=**} {
-      allow read, write: if signedIn();
-    }
-
-    match /messages/{document=**} {
-      allow read, write: if signedIn();
-    }
-
-    // Auth/Firestore 연결 테스트용 (문서 ID = uid). 자기 문서만.
-    // ⚠ 임시 규칙: 테스트 화면을 없애면 삭제할 것.
-    match /connection_tests/{uid} {
-      allow read, write: if signedIn() && request.auth.uid == uid;
-    }
-  }
-}
+} // service 종료
