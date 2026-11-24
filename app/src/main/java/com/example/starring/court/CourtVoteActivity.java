@@ -57,7 +57,7 @@ public class CourtVoteActivity extends AppCompatActivity {
 
     // 입장이 길면 접어 두고 "자세히보기"로 펼침
     private static final int COLLAPSED_LINES = 2;            // 입장 글
-    private static final int SITUATION_COLLAPSED_LINES = 3;   // 갈등 상황 글
+    private static final int SITUATION_COLLAPSED_LINES = 2;   // 갈등 상황 글
     private TextView toggleSituation;
     private TextView toggleA;
     private TextView toggleB;
