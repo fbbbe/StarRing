@@ -174,8 +174,8 @@ public class GalaxyRepository {
             galaxy.put(
                     FirestoreSchema.GALAXY_BORN_AT, null);
 
-            galaxy.put(
-                    FirestoreSchema.GALAXY_UNLINKED_AT, null);
+            // unlinkedAt은 생성 시 넣지 않는다 (rules create hasOnly에 없음 → 넣으면 거부).
+            // 연동 해제 시 serverTimestamp로 새로 추가된다.
 
             tx.set(galaxyRef, galaxy);
 
