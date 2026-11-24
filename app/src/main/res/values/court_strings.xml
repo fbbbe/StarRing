@@ -30,6 +30,8 @@
     <string name="court_vote_toast">당신의 한 표가 우주의 균형을 흔들었어요!</string>
     <string name="court_voted_a">A 입장에 투표했어요</string>
     <string name="court_voted_b">B 입장에 투표했어요</string>
+    <string name="court_see_more">자세히보기</string>
+    <string name="court_see_less">접기</string>
 
     <string name="court_reconcile_go">화해하러 가기</string>
     <string name="court_reconcile_title">화해하기</string>

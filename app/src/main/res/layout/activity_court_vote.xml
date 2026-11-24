@@ -123,12 +123,6 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:id="@+id/angerA"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="⚡"
-                            android:textSize="20sp" />
                     </LinearLayout>
 
                     <TextView
@@ -139,6 +133,17 @@
                         android:lineSpacingExtra="4dp"
                         android:textColor="@color/court_text"
                         android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/toggleA"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/court_see_more"
+                        android:textColor="@color/court_purple_light"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- B 입장 -->
@@ -166,12 +171,6 @@
                             android:textSize="14sp"
                             android:textStyle="bold" />
 
-                        <TextView
-                            android:id="@+id/angerB"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="⚡"
-                            android:textSize="20sp" />
                     </LinearLayout>
 
                     <TextView
@@ -182,6 +181,17 @@
                         android:lineSpacingExtra="4dp"
                         android:textColor="@color/court_text"
                         android:textSize="15sp" />
+
+                    <TextView
+                        android:id="@+id/toggleB"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/court_see_more"
+                        android:textColor="@color/court_purple_light"
+                        android:textSize="13sp"
+                        android:textStyle="bold"
+                        android:visibility="gone" />
                 </LinearLayout>
 
                 <!-- 투표 전: 버튼 -->

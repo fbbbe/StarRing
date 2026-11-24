@@ -8,6 +8,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.text.TextUtils;
 import android.view.View;
 import android.widget.ProgressBar;
 import android.widget.TextView;
@@ -53,6 +54,11 @@ public class CourtVoteActivity extends AppCompatActivity {
     private TextView textSituation;
     private TextView textPositionA;
     private TextView textPositionB;
+
+    // 입장이 길면 접어 두고 "자세히보기"로 펼침
+    private static final int COLLAPSED_LINES = 3;
+    private TextView toggleA;
+    private TextView toggleB;
     private TextView textRemaining;
     private TextView textPercentA;
     private TextView textPercentB;
@@ -65,8 +71,6 @@ public class CourtVoteActivity extends AppCompatActivity {
     private View btnVoteB;
     private View btnReconcileGo;
 
-    private View angerA;
-    private View angerB;
     private View cardA;
     private View cardB;
 
@@ -92,17 +96,6 @@ public class CourtVoteActivity extends AppCompatActivity {
             }
 
             handler.postDelayed(this, 1000);
-        }
-    };
-
-    private final Runnable wiggleLoop = new Runnable() {
-        @Override
-        public void run() {
-
-            wiggle(angerA);
-            wiggle(angerB);
-
-            handler.postDelayed(this, 3000);
         }
     };
 
@@ -148,8 +141,8 @@ public class CourtVoteActivity extends AppCompatActivity {
         btnVoteB = findViewById(R.id.btnVoteB);
         btnReconcileGo = findViewById(R.id.btnReconcileGo);
 
-        angerA = findViewById(R.id.angerA);
-        angerB = findViewById(R.id.angerB);
+        toggleA = findViewById(R.id.toggleA);
+        toggleB = findViewById(R.id.toggleB);
         cardA = findViewById(R.id.cardA);
         cardB = findViewById(R.id.cardB);
 
@@ -422,8 +415,8 @@ public class CourtVoteActivity extends AppCompatActivity {
 
         textTitle.setText("[" + post.title + "]");
         textSituation.setText(post.situation);
-        textPositionA.setText(post.positionA);
-        textPositionB.setText(post.positionB);
+        bindCollapsible(textPositionA, toggleA, post.positionA);
+        bindCollapsible(textPositionB, toggleB, post.positionB);
 
         CourtPostAdapter.bindRemaining(
                 textRemaining,
@@ -509,17 +502,14 @@ public class CourtVoteActivity extends AppCompatActivity {
         super.onResume();
 
         handler.removeCallbacks(ticker);
-        handler.removeCallbacks(wiggleLoop);
 
         handler.post(ticker);
-        handler.postDelayed(wiggleLoop, 800);
     }
 
     @Override
     protected void onPause() {
 
         handler.removeCallbacks(ticker);
-        handler.removeCallbacks(wiggleLoop);
 
         super.onPause();
     }
@@ -536,31 +526,56 @@ public class CourtVoteActivity extends AppCompatActivity {
     // 기존 흔들림 애니메이션 유지
     // ==========================================
 
-    private void wiggle(View view) {
+    /**
+     * 입장 글이 COLLAPSED_LINES 줄을 넘으면 그 줄까지만 보여 주고
+     * "자세히보기"를 눌러 펼치게 함. 화면 갱신 때마다 불리므로
+     * 내용이 같으면 펼침/접힘 상태를 그대로 둠.
+     */
+    private void bindCollapsible(
+            TextView body,
+            TextView toggle,
+            String content) {
 
-        if (view == null) {
+        if (content != null && content.equals(body.getTag())) {
             return;
         }
+        body.setTag(content);
 
-        ObjectAnimator animator =
-                ObjectAnimator.ofPropertyValuesHolder(
-                        view,
-                        PropertyValuesHolder.ofFloat(
-                                View.ROTATION,
-                                0f, -14f, 14f, -10f, 10f, 0f
-                        ),
-                        PropertyValuesHolder.ofFloat(
-                                View.SCALE_X,
-                                1f, 1.2f, 1f
-                        ),
-                        PropertyValuesHolder.ofFloat(
-                                View.SCALE_Y,
-                                1f, 1.2f, 1f
-                        )
+        body.setText(content);
+        body.setMaxLines(Integer.MAX_VALUE);
+        body.setEllipsize(null);
+        toggle.setVisibility(View.GONE);
+
+        // 글이 화면에 배치된 뒤에야 줄 수를 알 수 있음
+        body.post(() -> {
+
+            if (body.getLineCount() <= COLLAPSED_LINES) {
+                return;
+            }
+
+            body.setMaxLines(COLLAPSED_LINES);
+            body.setEllipsize(TextUtils.TruncateAt.END);
+            toggle.setText(R.string.court_see_more);
+            toggle.setVisibility(View.VISIBLE);
+
+            toggle.setOnClickListener(v -> {
+
+                boolean collapsed =
+                        body.getMaxLines() == COLLAPSED_LINES;
+
+                body.setMaxLines(
+                        collapsed ? Integer.MAX_VALUE : COLLAPSED_LINES
                 );
-
-        animator.setDuration(600);
-        animator.start();
+                body.setEllipsize(
+                        collapsed ? null : TextUtils.TruncateAt.END
+                );
+                toggle.setText(
+                        collapsed
+                                ? R.string.court_see_less
+                                : R.string.court_see_more
+                );
+            });
+        });
     }
 
     private void shakeScreen() {

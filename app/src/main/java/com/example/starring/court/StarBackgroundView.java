@@ -35,6 +35,10 @@ public class StarBackgroundView extends View {
     private final float[] starPhase = new float[STAR_COUNT];
     private final int[] starBlinks = new int[STAR_COUNT]; // 한 주기 동안 깜빡이는 횟수
 
+    // 별/성운 위에 씌우는 어두운 막 (앞 두 자리가 불투명도: 00 투명 ~ FF 완전 불투명)
+    // 66 = 은은하게 / 99 = 기본 / CC = 가벽처럼 거의 불투명. 별똥별은 막 위에 그려서 선명함
+    private static final int VEIL_COLOR = 0x99100D24;
+
     // 별똥별 (가끔 한 번씩 작게 지나감)
     private static final long METEOR_DURATION_MS = 1800L;
     private final Random meteorRandom = new Random();
@@ -116,6 +120,8 @@ public class StarBackgroundView extends View {
             starPaint.setAlpha((int) (255 * (0.25f + 0.75f * wave)));
             canvas.drawCircle(starX[i] * w, starY[i] * h, starRadiusDp[i] * density, starPaint);
         }
+
+        canvas.drawColor(VEIL_COLOR);
 
         drawMeteor(canvas, w, h);
     }
