@@ -65,10 +65,10 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
     // Cloudinary 설정값으로 변경할 것
     private static final String CLOUD_NAME =
-            "YOUR_CLOUD_NAME";
+            "ldwhbckg";
 
     private static final String UPLOAD_PRESET =
-            "YOUR_UNSIGNED_UPLOAD_PRESET";
+            "starring_upload";
 
     private final FirebaseFirestore db =
             FirebaseFirestore.getInstance();
