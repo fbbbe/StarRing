@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  블랙홀 애니메이션 v3 (속도는 duration 숫자만 수정, 단위 ms)
+  - 원반 회전      : 12000 (앞/뒤 두 군데 같은 값 유지)
+  - 노란 불꽃빛    : 7000, 반대 방향 (앞/뒤 같은 값 유지)
+  - 불씨 회전      : 16000 (반대 방향) / 불씨 깜빡임 700~1100
+  - 열기 깜빡임    : 850, 1300 (일부러 서로 다르게 해서 불규칙하게 보임)
+-->
+<animated-vector
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/blackhole_vector">
+
+    <target android:name="disk_back_spin">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="360"
+                android:duration="12000" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="disk_front_spin">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="360"
+                android:duration="12000" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="disk_back_spin2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="-360"
+                android:duration="7000" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="disk_front_spin2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="-360"
+                android:duration="7000" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ember_group">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="rotation" android:valueFrom="0" android:valueTo="-360"
+                android:duration="16000" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="halo_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.55" android:valueTo="1"
+                android:duration="3200" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="corona_a">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.5" android:valueTo="1"
+                android:duration="850" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="corona_b">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="fillAlpha" android:valueFrom="0.35" android:valueTo="0.95"
+                android:duration="1300" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ember_0">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.15" android:valueTo="0.95"
+                android:duration="700" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ember_1">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.9" android:valueTo="0.1"
+                android:duration="1100" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ember_2">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.2" android:valueTo="0.9"
+                android:duration="900" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ember_3">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.8" android:valueTo="0.15"
+                android:duration="600" android:interpolator="@android:anim/accelerate_decelerate_interpolator"
+                android:repeatCount="-1" android:repeatMode="reverse"/>
+        </aapt:attr>
+    </target>
+
+    <target android:name="ripple_1">
+        <aapt:attr name="android:animation">
+            <set android:ordering="together">
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.85" android:valueTo="1.6"
+                    android:duration="4800" android:interpolator="@android:anim/decelerate_interpolator" android:repeatCount="-1"/>
+                <objectAnimator android:propertyName="scaleY" android:valueFrom="0.85" android:valueTo="1.6"
+                    android:duration="4800" android:interpolator="@android:anim/decelerate_interpolator" android:repeatCount="-1"/>
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="ripple_1_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.5" android:valueTo="0"
+                android:duration="4800" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+    <target android:name="ripple_2">
+        <aapt:attr name="android:animation">
+            <set android:ordering="together">
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.85" android:valueTo="1.6"
+                    android:duration="4800" android:startOffset="1600" android:interpolator="@android:anim/decelerate_interpolator" android:repeatCount="-1"/>
+                <objectAnimator android:propertyName="scaleY" android:valueFrom="0.85" android:valueTo="1.6"
+                    android:duration="4800" android:startOffset="1600" android:interpolator="@android:anim/decelerate_interpolator" android:repeatCount="-1"/>
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="ripple_2_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.5" android:valueTo="0"
+                android:duration="4800" android:startOffset="1600" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+    <target android:name="ripple_3">
+        <aapt:attr name="android:animation">
+            <set android:ordering="together">
+                <objectAnimator android:propertyName="scaleX" android:valueFrom="0.85" android:valueTo="1.6"
+                    android:duration="4800" android:startOffset="3200" android:interpolator="@android:anim/decelerate_interpolator" android:repeatCount="-1"/>
+                <objectAnimator android:propertyName="scaleY" android:valueFrom="0.85" android:valueTo="1.6"
+                    android:duration="4800" android:startOffset="3200" android:interpolator="@android:anim/decelerate_interpolator" android:repeatCount="-1"/>
+            </set>
+        </aapt:attr>
+    </target>
+    <target android:name="ripple_3_path">
+        <aapt:attr name="android:animation">
+            <objectAnimator android:propertyName="strokeAlpha" android:valueFrom="0.5" android:valueTo="0"
+                android:duration="4800" android:startOffset="3200" android:interpolator="@android:anim/linear_interpolator" android:repeatCount="-1"/>
+        </aapt:attr>
+    </target>
+</animated-vector>

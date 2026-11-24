@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  입체형 블랙홀 v3 (AVD 테스트용)
+  그리는 순서(아래로 갈수록 위에 그려짐):
+   1 후광 → 2 열기(corona) → 3 파동 → 4 원반 뒤쪽 → 5 불씨 → 6 본체 → 7 원반 앞쪽
+  좌표는 200x200, 중심 (100,100). 기류/불씨/파동/원반은 같은 면에 눕혀서 그림
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="200"
+    android:viewportHeight="200">
+
+    <!-- 1. 은은한 후광 (숨 쉬듯) -->
+    <path
+        android:name="halo_path"
+        android:pathData="M100,5 A95,95 0 1,1 100,195 A95,95 0 1,1 100,5 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="100" android:centerY="100" android:gradientRadius="95">
+                <item android:offset="0.25" android:color="#66FF8864"/>
+                <item android:offset="0.55" android:color="#33ED5A44"/>
+                <item android:offset="1.0" android:color="#00D94939"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 2. 열기: 본체 바로 둘레의 뜨거운 빛 (불꽃처럼 빠르게 깜빡) -->
+    <path
+        android:name="corona_a"
+        android:pathData="M100,50 A50,50 0 1,1 100,150 A50,50 0 1,1 100,50 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="100" android:centerY="100" android:gradientRadius="50">
+                <item android:offset="0.5" android:color="#00FF9468"/>
+                <item android:offset="0.68" android:color="#88FFB878"/>
+                <item android:offset="1.0" android:color="#00FF7A50"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:name="corona_b"
+        android:pathData="M100,40 A60,60 0 1,1 100,160 A60,60 0 1,1 100,40 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="100" android:centerY="100" android:gradientRadius="60">
+                <item android:offset="0.45" android:color="#00FF7A50"/>
+                <item android:offset="0.65" android:color="#55FF8864"/>
+                <item android:offset="1.0" android:color="#00ED5A44"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 3. 파동 -->
+    <group android:pivotX="100" android:pivotY="100" android:scaleY="0.38" android:rotation="-12">
+        <group android:name="ripple_1" android:pivotX="100" android:pivotY="100">
+            <path android:name="ripple_1_path" android:pathData="M100,40 A60,60 0 1,1 100,160 A60,60 0 1,1 100,40 Z"
+                android:strokeColor="#FFFF9468" android:strokeWidth="2" android:strokeAlpha="0"/>
+        </group>
+        <group android:name="ripple_2" android:pivotX="100" android:pivotY="100">
+            <path android:name="ripple_2_path" android:pathData="M100,40 A60,60 0 1,1 100,160 A60,60 0 1,1 100,40 Z"
+                android:strokeColor="#FFFF9468" android:strokeWidth="2" android:strokeAlpha="0"/>
+        </group>
+        <group android:name="ripple_3" android:pivotX="100" android:pivotY="100">
+            <path android:name="ripple_3_path" android:pathData="M100,40 A60,60 0 1,1 100,160 A60,60 0 1,1 100,40 Z"
+                android:strokeColor="#FFFF9468" android:strokeWidth="2" android:strokeAlpha="0"/>
+        </group>
+    </group>
+
+    <!-- 원반 back: 위쪽 절반 = 블랙홀 뒤로 지나가는 부분 -->
+    <group android:pivotX="100" android:pivotY="100" android:scaleY="0.38" android:rotation="-12">
+        <clip-path android:pathData="M-50,-50 L250,-50 L250,100.6 L-50,100.6 Z"/>
+        <group android:name="disk_back_spin" android:pivotX="100" android:pivotY="100">
+            <!-- 바탕: 안쪽은 밝고 바깥으로 갈수록 식는 색 -->
+            <path android:pathData="M100,20 A80,80 0 1,1 100,180 A80,80 0 1,1 100,20 Z M100,66 A34,34 0 1,0 100,134 A34,34 0 1,0 100,66 Z" android:fillType="evenOdd">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="radial" android:centerX="100" android:centerY="100" android:gradientRadius="80">
+                        <item android:offset="0.42" android:color="#FFFFE2C0"/>
+                        <item android:offset="0.55" android:color="#FFFF9468"/>
+                        <item android:offset="0.78" android:color="#99ED5A44"/>
+                        <item android:offset="1.0" android:color="#00D94939"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+            <!-- 돌아가는 밝은 부분 -->
+            <path android:pathData="M100,20 A80,80 0 1,1 100,180 A80,80 0 1,1 100,20 Z M100,66 A34,34 0 1,0 100,134 A34,34 0 1,0 100,66 Z" android:fillType="evenOdd">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="sweep" android:centerX="100" android:centerY="100">
+                        <item android:offset="0.0" android:color="#00FFE6CC"/>
+                        <item android:offset="0.12" android:color="#DDFFF0DC"/>
+                        <item android:offset="0.3" android:color="#00FFE6CC"/>
+                        <item android:offset="0.62" android:color="#00FFE6CC"/>
+                        <item android:offset="0.76" android:color="#88FFE6CC"/>
+                        <item android:offset="1.0" android:color="#00FFE6CC"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+        <!-- 반대로 더 빨리 도는 노란 불꽃빛 (이글거림) -->
+        <group android:name="disk_back_spin2" android:pivotX="100" android:pivotY="100">
+            <path android:pathData="M100,20 A80,80 0 1,1 100,180 A80,80 0 1,1 100,20 Z M100,66 A34,34 0 1,0 100,134 A34,34 0 1,0 100,66 Z" android:fillType="evenOdd">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="sweep" android:centerX="100" android:centerY="100">
+                        <item android:offset="0.0" android:color="#00FFD070"/>
+                        <item android:offset="0.07" android:color="#99FFE090"/>
+                        <item android:offset="0.18" android:color="#00FFD070"/>
+                        <item android:offset="0.48" android:color="#00FFD070"/>
+                        <item android:offset="0.56" android:color="#66FFC060"/>
+                        <item android:offset="0.68" android:color="#00FFD070"/>
+                        <item android:offset="1.0" android:color="#00FFD070"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+    </group>
+
+    <!-- 5. 원반 둘레를 도는 불씨 -->
+    <group android:pivotX="100" android:pivotY="100" android:scaleY="0.38" android:rotation="-12">
+        <group android:name="ember_group" android:pivotX="100" android:pivotY="100">
+            <path
+                android:name="ember_0"
+                android:pathData="M169.5,125.3 A74,74 0 0,1 112.8,172.9"
+                android:strokeColor="#FFFFB070"
+                android:strokeWidth="2.6"
+                android:strokeLineCap="round"
+                android:strokeAlpha="0.6"/>
+            <path
+                android:name="ember_1"
+                android:pathData="M25.5,143.0 A86,86 0 0,1 19.2,70.6"
+                android:strokeColor="#FFFFB070"
+                android:strokeWidth="2.0"
+                android:strokeLineCap="round"
+                android:strokeAlpha="0.6"/>
+            <path
+                android:name="ember_2"
+                android:pathData="M77.4,38.0 A66,66 0 0,1 159.8,72.1"
+                android:strokeColor="#FFFFB070"
+                android:strokeWidth="2.4"
+                android:strokeLineCap="round"
+                android:strokeAlpha="0.6"/>
+            <path
+                android:name="ember_3"
+                android:pathData="M145.0,22.1 A90,90 0 0,1 177.9,55.0"
+                android:strokeColor="#FFFFB070"
+                android:strokeWidth="1.6"
+                android:strokeLineCap="round"
+                android:strokeAlpha="0.6"/>
+        </group>
+    </group>
+
+    <!-- 6. 블랙홀 본체 -->
+    <path
+        android:pathData="M100,68 A32,32 0 1,1 100,132 A32,32 0 1,1 100,68 Z"
+        android:strokeColor="#44FF8864"
+        android:strokeWidth="6"/>
+    <path
+        android:pathData="M100,72 A28,28 0 1,1 100,128 A28,28 0 1,1 100,72 Z"
+        android:strokeColor="#FFFFB488"
+        android:strokeWidth="1.6">
+        <aapt:attr name="android:fillColor">
+            <gradient android:type="radial" android:centerX="100" android:centerY="100" android:gradientRadius="28">
+                <item android:offset="0.0" android:color="#FF000000"/>
+                <item android:offset="0.8" android:color="#FF050208"/>
+                <item android:offset="1.0" android:color="#FF2A0F12"/>
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- 원반 front: 아래쪽 절반 = 블랙홀 앞으로 지나가는 부분 -->
+    <group android:pivotX="100" android:pivotY="100" android:scaleY="0.38" android:rotation="-12">
+        <clip-path android:pathData="M-50,99.4 L250,99.4 L250,250 L-50,250 Z"/>
+        <group android:name="disk_front_spin" android:pivotX="100" android:pivotY="100">
+            <!-- 바탕: 안쪽은 밝고 바깥으로 갈수록 식는 색 -->
+            <path android:pathData="M100,20 A80,80 0 1,1 100,180 A80,80 0 1,1 100,20 Z M100,66 A34,34 0 1,0 100,134 A34,34 0 1,0 100,66 Z" android:fillType="evenOdd">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="radial" android:centerX="100" android:centerY="100" android:gradientRadius="80">
+                        <item android:offset="0.42" android:color="#FFFFE2C0"/>
+                        <item android:offset="0.55" android:color="#FFFF9468"/>
+                        <item android:offset="0.78" android:color="#99ED5A44"/>
+                        <item android:offset="1.0" android:color="#00D94939"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+            <!-- 돌아가는 밝은 부분 -->
+            <path android:pathData="M100,20 A80,80 0 1,1 100,180 A80,80 0 1,1 100,20 Z M100,66 A34,34 0 1,0 100,134 A34,34 0 1,0 100,66 Z" android:fillType="evenOdd">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="sweep" android:centerX="100" android:centerY="100">
+                        <item android:offset="0.0" android:color="#00FFE6CC"/>
+                        <item android:offset="0.12" android:color="#DDFFF0DC"/>
+                        <item android:offset="0.3" android:color="#00FFE6CC"/>
+                        <item android:offset="0.62" android:color="#00FFE6CC"/>
+                        <item android:offset="0.76" android:color="#88FFE6CC"/>
+                        <item android:offset="1.0" android:color="#00FFE6CC"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+        <!-- 반대로 더 빨리 도는 노란 불꽃빛 (이글거림) -->
+        <group android:name="disk_front_spin2" android:pivotX="100" android:pivotY="100">
+            <path android:pathData="M100,20 A80,80 0 1,1 100,180 A80,80 0 1,1 100,20 Z M100,66 A34,34 0 1,0 100,134 A34,34 0 1,0 100,66 Z" android:fillType="evenOdd">
+                <aapt:attr name="android:fillColor">
+                    <gradient android:type="sweep" android:centerX="100" android:centerY="100">
+                        <item android:offset="0.0" android:color="#00FFD070"/>
+                        <item android:offset="0.07" android:color="#99FFE090"/>
+                        <item android:offset="0.18" android:color="#00FFD070"/>
+                        <item android:offset="0.48" android:color="#00FFD070"/>
+                        <item android:offset="0.56" android:color="#66FFC060"/>
+                        <item android:offset="0.68" android:color="#00FFD070"/>
+                        <item android:offset="1.0" android:color="#00FFD070"/>
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+    </group>
+</vector>

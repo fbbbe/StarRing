@@ -1,75 +1,64 @@
-
 package com.example.starring.court;
 
 import android.animation.ValueAnimator;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.RadialGradient;
-import android.graphics.RectF;
-import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.graphics.drawable.Animatable;
+import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
+
+import androidx.annotation.NonNull;
 
 import com.example.starring.R;
 
 /**
  * 은하계 메인 블랙홀 효과
  *
- * - 원본 PNG의 가로세로 비율 유지
- * - 생성 시 회전하며 커지는 등장 애니메이션
- * - 평소 둥둥 떠다니는 움직임
- * - 은은한 다홍색 후광 및 맥박 효과
- * - 블랙홀 아래 타이머 표시
+ * - 블랙홀 본체/원반/기류/불씨/파동/후광은 AVD(res/drawable/avd_blackhole.xml)가 그림
+ *   (돌아가고 깜빡이는 움직임은 AVD 안에서 알아서 재생됨)
+ * - 이 클래스는 AVD를 화면에 놓고, 아래 연출만 담당
+ *   · 생성 시 회전하며 커지는 등장 애니메이션
+ *   · 블랙홀 아래 타이머 표시 (둥둥 떠다니는 움직임은 뺐음)
+ *
+ * 모양/색/속도를 바꾸고 싶으면 avd_blackhole.xml, blackhole_vector.xml 을 수정.
  */
 public class BlackholeEffect {
 
     // 등장 애니메이션 시간
     private static final long APPEAR_MS = 1100L;
 
-    // 애니메이션 전체 반복 주기
+    // 타이머 깜빡임의 반복 주기
     private static final long SPIN_MS = 24000L;
 
-    // 한 주기 동안 후광이 맥박치는 횟수
+    // 타이머 깜빡임 횟수 (한 주기 동안)
     private static final int PULSES_PER_SPIN = 10;
 
-    // 블랙홀 크기 대비 후광 반경
-    private static final float HALO_SCALE = 0.55f;
+    // 타이머 깜빡임 갱신 간격
+    private static final long LOOP_INTERVAL_MS = 50L;
 
-    // 후광 크기 변화 정도
-    private static final float HALO_PULSE = 0.12f;
+    // ★ 블랙홀 크기 조절은 이 숫자 하나만 바꾸면 됨 ★
+    // GalaxyView 의 BLACKHOLE_SIZE_DP(600)에 곱해지는 비율.
+    // 1.0 이면 정사각형 한 변이 600dp (원반 가로폭 약 480dp)
+    // 0.75 → 원반 가로폭 약 360dp / 0.6 → 약 290dp / 0.5 → 약 240dp
+    private static final float VECTOR_SCALE = 0.6f;
 
-    // 애니메이션 갱신 간격
-    private static final long LOOP_INTERVAL_MS = 100L;
+    // 타이머 글자 크기 (기존 14 → 11). 더 줄이려면 10, 키우려면 12
+    private static final float TIMER_TEXT_SP = 11f;
+
+    // 벡터 그림의 실제 내용 높이 비율 (타이머를 블랙홀 바로 아래에 두는 기준)
+    private static final float CONTENT_HALF_HEIGHT = 0.4f;
 
     private final View host;
-    private final Bitmap bitmap;
     private final float density;
 
-    // 원본 이미지의 가로세로 크기
-    private final float imageWidth;
-    private final float imageHeight;
-
-    // 원본 이미지의 긴 쪽을 기준으로 계산한 비율
-    private final float widthRatio;
-    private final float heightRatio;
-
-    private final Paint bitmapPaint =
-            new Paint(
-                    Paint.ANTI_ALIAS_FLAG
-                            | Paint.FILTER_BITMAP_FLAG
-            );
-
-    private final Paint haloPaint =
-            new Paint(Paint.ANTI_ALIAS_FLAG);
+    // 블랙홀 AVD (없으면 null)
+    private final Drawable drawable;
 
     private final Paint textPaint =
             new Paint(Paint.ANTI_ALIAS_FLAG);
-
-    private final RectF rect = new RectF();
 
     private boolean visible = false;
     private boolean running = false;
@@ -87,7 +76,44 @@ public class BlackholeEffect {
     private boolean looping = false;
 
     // ------------------------------------
-    // 반복 애니메이션
+    // AVD 가 다시 그려 달라고 할 때 호스트 View 를 갱신
+    // (Drawable 은 콜백을 약하게만 잡으므로 필드로 직접 들고 있어야 함)
+    // ------------------------------------
+
+    private final Drawable.Callback drawableCallback =
+            new Drawable.Callback() {
+
+                @Override
+                public void invalidateDrawable(@NonNull Drawable who) {
+                    host.invalidate();
+                }
+
+                @Override
+                public void scheduleDrawable(
+                        @NonNull Drawable who,
+                        @NonNull Runnable what,
+                        long when) {
+
+                    host.postDelayed(
+                            what,
+                            Math.max(
+                                    0L,
+                                    when - SystemClock.uptimeMillis()
+                            )
+                    );
+                }
+
+                @Override
+                public void unscheduleDrawable(
+                        @NonNull Drawable who,
+                        @NonNull Runnable what) {
+
+                    host.removeCallbacks(what);
+                }
+            };
+
+    // ------------------------------------
+    // 반복 갱신 (타이머 깜빡임)
     // ------------------------------------
 
     private final Runnable loopRunnable = new Runnable() {
@@ -122,60 +148,15 @@ public class BlackholeEffect {
         this.density = host.getResources()
                 .getDisplayMetrics().density;
 
-        this.bitmap = BitmapFactory.decodeResource(
-                host.getResources(),
-                R.drawable.blackhole_aqua
-        );
+        Drawable d = host.getContext()
+                .getDrawable(R.drawable.avd_blackhole);
 
-        // 원본 PNG의 비율 계산
-        if (bitmap != null) {
-
-            imageWidth = bitmap.getWidth();
-            imageHeight = bitmap.getHeight();
-
-            // 긴 쪽을 1로 설정
-            float maxDimension = Math.max(
-                    imageWidth,
-                    imageHeight
-            );
-
-            widthRatio = imageWidth / maxDimension;
-            heightRatio = imageHeight / maxDimension;
-
-        } else {
-
-            imageWidth = 1f;
-            imageHeight = 1f;
-
-            widthRatio = 1f;
-            heightRatio = 1f;
+        if (d != null) {
+            d = d.mutate();
+            d.setCallback(drawableCallback);
         }
 
-        // ------------------------------------
-        // 다홍색 후광 설정
-        // ------------------------------------
-
-        haloPaint.setShader(
-                new RadialGradient(
-                        0f,
-                        0f,
-                        1f,
-
-                        new int[]{
-                                0x88FF8864, // 안쪽: 밝은 다홍색
-                                0x44ED5A44, // 중간: 부드러운 코랄 레드
-                                0x00D94939  // 바깥: 투명하게 사라짐
-                        },
-
-                        new float[]{
-                                0.25f,
-                                0.65f,
-                                1f
-                        },
-
-                        Shader.TileMode.CLAMP
-                )
-        );
+        this.drawable = d;
 
         // ------------------------------------
         // 타이머 글자 설정
@@ -193,12 +174,12 @@ public class BlackholeEffect {
         );
 
         textPaint.setTextSize(
-                14f * density
+                TIMER_TEXT_SP * density
         );
 
         // 밝은 별 위에서도 글자가 보이도록 그림자
         textPaint.setShadowLayer(
-                4f * density,
+                3f * density,
                 0f,
                 0f,
                 0xFF000000
@@ -308,7 +289,7 @@ public class BlackholeEffect {
             float baseHalf) {
 
         if (!visible
-                || bitmap == null
+                || drawable == null
                 || appear <= 0.001f) {
             return;
         }
@@ -320,7 +301,7 @@ public class BlackholeEffect {
                 a
         );
 
-        // 후광 맥박 계산
+        // 타이머 깜빡임 계산
         float pulse =
                 0.5f
                         + 0.5f * (float) Math.sin(
@@ -330,76 +311,28 @@ public class BlackholeEffect {
                 );
 
         // ------------------------------------
-        // 1. 둥둥 떠다니는 움직임
+        // 1. 블랙홀 AVD 그리기 (제자리, 흔들림 없음)
         // ------------------------------------
 
-        float bobY =
-                baseHalf * 0.08f
-                        * (float) Math.sin(
-                        2 * Math.PI * phase * 6
-                );
+        float bx = cx;
+        float by = cy;
 
-        float bobX =
-                baseHalf * 0.04f
-                        * (float) Math.sin(
-                        2 * Math.PI * phase * 4 + 1.0
-                );
-
-        float bx = cx + bobX * aClamped;
-        float by = cy + bobY * aClamped;
-
-        // ------------------------------------
-        // 2. 다홍색 후광 그리기
-        // ------------------------------------
-
-        float haloR =
-                baseHalf
-                        * (HALO_SCALE + HALO_PULSE * pulse)
-                        * a;
-
-        haloPaint.setAlpha(
-                (int) (
-                        255
-                                * (0.6f + 0.4f * pulse)
-                                * aClamped
-                )
-        );
-
-        canvas.save();
-
-        canvas.translate(bx, by);
-
-        canvas.scale(
-                haloR,
-                haloR
-        );
-
-        canvas.drawCircle(
-                0f,
-                0f,
-                1f,
-                haloPaint
-        );
-
-        canvas.restore();
-
-        // ------------------------------------
-        // 3. 원본 비율을 유지한 블랙홀 이미지
-        // ------------------------------------
-
-        // 긴 쪽을 기준으로 가로와 세로 크기 계산
-        float halfWidth =
-                baseHalf * widthRatio * a;
-
-        float halfHeight =
-                baseHalf * heightRatio * a;
+        // 등장 중에는 커지면서(a) 회전
+        float half = baseHalf * VECTOR_SCALE * a;
 
         // 등장 애니메이션 회전 각도
         float angle =
                 (1f - aClamped) * 270f;
 
-        bitmapPaint.setAlpha(
+        drawable.setAlpha(
                 (int) (255 * aClamped)
+        );
+
+        drawable.setBounds(
+                Math.round(bx - half),
+                Math.round(by - half),
+                Math.round(bx + half),
+                Math.round(by + half)
         );
 
         canvas.save();
@@ -410,26 +343,12 @@ public class BlackholeEffect {
                 by
         );
 
-        // 정사각형으로 강제하지 않고
-        // 원본 가로세로 비율에 맞춰 그리기
-        rect.set(
-                bx - halfWidth,
-                by - halfHeight,
-                bx + halfWidth,
-                by + halfHeight
-        );
-
-        canvas.drawBitmap(
-                bitmap,
-                null,
-                rect,
-                bitmapPaint
-        );
+        drawable.draw(canvas);
 
         canvas.restore();
 
         // ------------------------------------
-        // 4. 블랙홀 아래 타이머
+        // 2. 블랙홀 아래 타이머
         // ------------------------------------
 
         if (label != null && aClamped >= 0.85f) {
@@ -437,15 +356,13 @@ public class BlackholeEffect {
             Paint.FontMetrics fm =
                     textPaint.getFontMetrics();
 
-            // 실제 이미지 높이를 기준으로 배치
-            // 기존 정사각형 기준의 과도한 간격 방지
-            float imageHalfHeight =
-                    baseHalf * heightRatio;
+            float contentHalfHeight =
+                    baseHalf * VECTOR_SCALE * CONTENT_HALF_HEIGHT;
 
             float baseline =
                     cy
-                            + imageHalfHeight
-                            + 12f * density
+                            + contentHalfHeight
+                            + 8f * density
                             - fm.ascent;
 
             int color = urgent
@@ -508,7 +425,7 @@ public class BlackholeEffect {
     }
 
     // ------------------------------------
-    // 반복 애니메이션 시작
+    // 반복 애니메이션 시작 (AVD 재생 포함)
     // ------------------------------------
 
     private void startLoop() {
@@ -519,11 +436,15 @@ public class BlackholeEffect {
 
         looping = true;
 
+        if (drawable instanceof Animatable) {
+            ((Animatable) drawable).start();
+        }
+
         host.post(loopRunnable);
     }
 
     // ------------------------------------
-    // 애니메이션 종료
+    // 애니메이션 종료 (AVD 정지 포함)
     // ------------------------------------
 
     private void cancelAnimators() {
@@ -539,5 +460,9 @@ public class BlackholeEffect {
         host.removeCallbacks(
                 loopRunnable
         );
+
+        if (drawable instanceof Animatable) {
+            ((Animatable) drawable).stop();
+        }
     }
 }
