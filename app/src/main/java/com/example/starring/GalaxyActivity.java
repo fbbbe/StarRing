@@ -19,6 +19,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 import com.example.starring.court.StarConsumption;
 
+
 import java.util.Calendar;
 import java.util.TimeZone;
 import com.example.starring.court.CourtMainActivity;
@@ -28,6 +29,15 @@ import com.example.starring.court.CourtRepository;
 import com.example.starring.court.CourtPost;
 import com.example.starring.court.CourtVoteActivity;
 import java.util.List;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
+import com.google.firebase.firestore.Query;
+import com.google.firebase.firestore.DocumentSnapshot;
+
+import java.util.ArrayList;
+import java.util.Collections;
 
 
 public class GalaxyActivity extends Activity {
@@ -80,6 +90,8 @@ public class GalaxyActivity extends Activity {
             R.drawable.solar_uranus,
             R.drawable.solar_neptune
     };
+    private ListenerRegistration planetsListener;
+    private int planetsListenerGeneration = 0;
 
     // 블랙홀 아래 타이머 (1초마다 갱신) - na
     private final Runnable blackholeLabelTicker = new Runnable() {
@@ -162,6 +174,21 @@ public class GalaxyActivity extends Activity {
                 findViewById(R.id.galaxyContainer);
 
         galaxyView = new GalaxyView(this);
+
+        galaxyView.setOnPlanetClickListener(planetId -> {
+
+            Intent intent = new Intent(
+                    GalaxyActivity.this,
+                    PlanetDetailActivity.class
+            );
+
+            intent.putExtra(
+                    PlanetDetailActivity.EXTRA_PLANET_ID,
+                    planetId
+            );
+
+            startActivity(intent);
+        });
 
         // 은하계의 블랙홀을 누르면 내 블랙홀의 투표 현황 화면으로 이동 - na
         galaxyView.setOnBlackholeClickListener(() -> {
@@ -615,9 +642,6 @@ public class GalaxyActivity extends Activity {
 
         // 기존 초신성 / 백색왜성 테스트
         galaxyView.setSpecialBodyCounts(1, 1);
-
-        // 기존 행성 테스트
-        galaxyView.setPlanetCount(6);
     }
 
     // ------------------------------------
@@ -676,6 +700,8 @@ public class GalaxyActivity extends Activity {
         // 별 개수 1분마다 재계산
         handler.removeCallbacks(dateChecker);
         handler.post(dateChecker);
+
+        startPlanetsListener();
     }
 
     @Override
@@ -688,6 +714,8 @@ public class GalaxyActivity extends Activity {
         handler.removeCallbacks(blackholeLabelTicker);
 
         super.onPause();
+
+        stopPlanetsListener();
     }
 
 
@@ -701,4 +729,121 @@ public class GalaxyActivity extends Activity {
             super.onBackPressed();
         }
     }
+
+
+    private void startPlanetsListener() {
+
+        final int generation = ++planetsListenerGeneration;
+
+        FirebaseUser user =
+                FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            return;
+        }
+
+        FirebaseFirestore db =
+                FirebaseFirestore.getInstance();
+
+        // 로그인한 계정의 은하계 ID 확인
+        db.collection("users")
+                .document(user.getUid())
+                .get()
+                .addOnSuccessListener(this, userDoc -> {
+
+                    if (generation != planetsListenerGeneration) {
+                        return;
+                    }
+
+                    String galaxyId =
+                            userDoc.getString("galaxyId");
+
+                    if (galaxyId == null) {
+
+                        galaxyView.setPlanetDocuments(
+                                Collections.emptyList(),
+                                Collections.emptyList()
+                        );
+
+                        return;
+                    }
+
+                    // 실제 생성된 행성 실시간 조회
+                    planetsListener = db.collection("galaxies")
+                            .document(galaxyId)
+                            .collection("planets")
+                            .orderBy(
+                                    "createdAt",
+                                    Query.Direction.ASCENDING
+                            )
+                            .limit(24)
+                            .addSnapshotListener((snapshot, error) -> {
+
+                                if (generation != planetsListenerGeneration) {
+                                    return;
+                                }
+
+                                if (error != null) {
+
+                                    android.util.Log.e(
+                                            "StarRingPlanets",
+                                            "행성 목록 조회 실패",
+                                            error
+                                    );
+
+                                    return;
+                                }
+
+                                if (snapshot == null) {
+                                    return;
+                                }
+
+                                ArrayList<String> ids =
+                                        new ArrayList<>();
+
+                                ArrayList<String> assets =
+                                        new ArrayList<>();
+
+                                for (DocumentSnapshot doc :
+                                        snapshot.getDocuments()) {
+
+                                    ids.add(doc.getId());
+
+                                    String asset =
+                                            doc.getString("planetAsset");
+
+                                    assets.add(
+                                            asset == null
+                                                    ? "planet_01"
+                                                    : asset
+                                    );
+                                }
+
+                                // GalaxyView의 실제 행성 목록 반영
+                                galaxyView.setPlanetDocuments(
+                                        ids,
+                                        assets
+                                );
+                            });
+                })
+                .addOnFailureListener(this, error -> {
+
+                    android.util.Log.e(
+                            "StarRingPlanets",
+                            "은하계 정보 조회 실패",
+                            error
+                    );
+                });
+    }
+
+    private void stopPlanetsListener() {
+
+        planetsListenerGeneration++;
+
+        if (planetsListener != null) {
+            planetsListener.remove();
+            planetsListener = null;
+        }
+    }
+
 }

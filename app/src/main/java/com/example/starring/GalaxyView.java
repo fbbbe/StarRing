@@ -10,6 +10,7 @@ import android.graphics.RectF;
 import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
+import java.util.List;
 
 import com.example.starring.court.BlackholeEffect;   // na가 추가
 
@@ -149,6 +150,52 @@ public class GalaxyView extends View {
             this.big = big;
         }
     }
+
+    // Firestore에 저장된 실제 행성 문서 정보
+    private final ArrayList<String> planetDocumentIds =
+            new ArrayList<>();
+
+    private final ArrayList<String> planetAssets =
+            new ArrayList<>();
+
+    public interface OnPlanetClickListener {
+        void onPlanetClick(String planetId);
+    }
+
+    private OnPlanetClickListener planetClickListener;
+
+    public void setOnPlanetClickListener(
+            OnPlanetClickListener listener) {
+        planetClickListener = listener;
+    }
+
+    // Firebase에서 받아온 행성 목록을 화면에 반영
+    public void setPlanetDocuments(
+            List<String> ids,
+            List<String> assets) {
+
+        planetDocumentIds.clear();
+        planetAssets.clear();
+
+        int count = Math.min(
+                planetPositions.size(),
+                ids.size()
+        );
+
+        for (int i = 0; i < count; i++) {
+            planetDocumentIds.add(ids.get(i));
+
+            String asset = i < assets.size()
+                    ? assets.get(i)
+                    : "planet_01";
+
+            planetAssets.add(asset);
+        }
+
+        setPlanetCount(count);
+        invalidate();
+    }
+
 
     // 별자리 / 초신성 / 백색왜성 / 행성
     private static class Body {
@@ -816,6 +863,11 @@ public class GalaxyView extends View {
             float width = body.width * density * zoom;
             float height = body.height * density * zoom;
 
+            if (body.type == PLANET && bitmap.getWidth() > 0) {
+                height = width * bitmap.getHeight()
+                        / (float) bitmap.getWidth();
+            }
+
             float halfW = width / 2f;
             float halfH = height / 2f;
 
@@ -837,6 +889,68 @@ public class GalaxyView extends View {
                     bitmap, null, drawRect, imagePaint
             );
         }
+    }
+
+
+    private String findTappedPlanet(float touchX, float touchY) {
+
+        float slop = 10f * density;
+
+        // 드래그를 클릭으로 인식하지 않음
+        if (Math.abs(touchX - downX) > slop
+                || Math.abs(touchY - downY) > slop) {
+            return null;
+        }
+
+        // 화면에서 마지막에 그린 행성부터 확인
+        for (int i = visiblePlanets.size() - 1; i >= 0; i--) {
+
+            Body body = visiblePlanets.get(i);
+            int slot = body.id - 1;
+
+            if (slot < 0
+                    || slot >= planetDocumentIds.size()) {
+                continue;
+            }
+
+            Bitmap image = getBodyBitmap(body);
+
+            if (image == null || image.getWidth() == 0) {
+                continue;
+            }
+
+            float centerX = getWidth() / 2f + offsetX
+                    + body.x * density * zoom;
+
+            float centerY = getHeight() / 2f + offsetY
+                    + body.y * density * zoom;
+
+            float imageWidth =
+                    body.width * density * zoom;
+
+            float imageHeight = imageWidth
+                    * image.getHeight()
+                    / (float) image.getWidth();
+
+            // 작은 행성도 터치할 수 있도록 최소 영역 확보
+            float halfW = Math.max(
+                    imageWidth / 2f,
+                    24f * density
+            );
+
+            float halfH = Math.max(
+                    imageHeight / 2f,
+                    24f * density
+            );
+
+            if (Math.abs(touchX - centerX) <= halfW
+                    && Math.abs(touchY - centerY) <= halfH) {
+
+                return planetDocumentIds.get(slot);
+            }
+        }
+
+        return null;
     }
 
     private Bitmap getBodyBitmap(Body body) {
@@ -989,20 +1103,40 @@ public class GalaxyView extends View {
             case MotionEvent.ACTION_POINTER_UP:
                 return true;
 
+
             case MotionEvent.ACTION_UP:
 
-                // 짧게 톡 눌렀고(드래그 아님) 블랙홀 위라면 클릭 처리 - na
-                if (!hadMultiTouch
-                        && isTapOnBlackhole(event.getX(), event.getY())) {
-                    blackholeClickListener.onBlackholeClick();
-                }
-
                 if (!hadMultiTouch) {
+
+                    float x = event.getX();
+                    float y = event.getY();
+
+                    // 블랙홀 클릭을 우선 처리
+                    if (isTapOnBlackhole(x, y)) {
+
+                        blackholeClickListener.onBlackholeClick();
+
+                    } else {
+
+                        // 행성 클릭 처리
+                        String planetId =
+                                findTappedPlanet(x, y);
+
+                        if (planetId != null
+                                && planetClickListener != null) {
+
+                            planetClickListener.onPlanetClick(
+                                    planetId
+                            );
+                        }
+                    }
+
                     performClick();
                 }
 
                 hadMultiTouch = false;
                 return true;
+
 
             case MotionEvent.ACTION_CANCEL:
 
