@@ -24,6 +24,7 @@ import com.example.starring.data.UserRepository;
 import com.google.firebase.auth.FirebaseAuth;
 import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.firestore.DocumentSnapshot;
+import android.content.res.ColorStateList;
 
 public class GalaxyLoadingActivity extends Activity {
 
@@ -76,6 +77,9 @@ public class GalaxyLoadingActivity extends Activity {
         content.addView(title);
 
         ProgressBar progress = new ProgressBar(this);
+        progress.setIndeterminateTintList(
+                ColorStateList.valueOf(Color.WHITE)
+        );
 
         LinearLayout.LayoutParams progressParams =
                 new LinearLayout.LayoutParams(85, 85);
