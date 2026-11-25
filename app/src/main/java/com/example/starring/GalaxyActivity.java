@@ -19,8 +19,9 @@ import android.widget.Toast;
 import com.example.starring.court.StarConsumption;
 
 
-import java.util.Calendar;
-import java.util.TimeZone;
+import com.example.starring.common.GalaxyDates;
+
+import java.time.LocalDate;
 import com.example.starring.court.CourtMainActivity;
 import com.example.starring.court.CourtWriteActivity;
 import com.example.starring.court.CourtNotice;
@@ -73,10 +74,8 @@ public class GalaxyActivity extends Activity {
     private final Handler handler =
             new Handler(Looper.getMainLooper());
 
-    // Firebase에서 전달받는 실제 연애 시작일
-    private int startYear = 2026;
-    private int startMonth = 11;
-    private int startDay = 19;
+    // Firebase에서 전달받는 실제 연애 시작일 (전달값이 없거나 잘못되면 기본값 유지)
+    private LocalDate startDate = LocalDate.of(2026, 11, 19);
 
     // 정식 실행 시 날짜를 임의로 추가하지 않음
     private static final int TEST_ADD_DAYS = 0;
@@ -174,18 +173,15 @@ public class GalaxyActivity extends Activity {
         }
 
         // 은하계 로딩 화면에서 받은 만난 날짜
-        String startDate = getIntent().getStringExtra(
-                GalaxyLoadingActivity.EXTRA_START_DATE
+        // "yyyy-MM-dd" → 날짜. 형식이 틀리거나 없는 날짜(2/31 등)면 null → 기본값 유지
+        LocalDate parsedStart = GalaxyDates.parseDate(
+                getIntent().getStringExtra(
+                        GalaxyLoadingActivity.EXTRA_START_DATE
+                )
         );
 
-        if (startDate != null
-                && startDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
-
-            String[] parts = startDate.split("-");
-
-            startYear = Integer.parseInt(parts[0]);
-            startMonth = Integer.parseInt(parts[1]);
-            startDay = Integer.parseInt(parts[2]);
+        if (parsedStart != null) {
+            startDate = parsedStart;
         }
 
         // 기존 은하계
@@ -522,111 +518,22 @@ public class GalaxyActivity extends Activity {
     // 6. 날짜 기반 천체 생성
     // ------------------------------------
 
-    private Calendar makeDate(
-            int year, int month, int day) {
-
-        Calendar date = Calendar.getInstance(
-                TimeZone.getTimeZone("UTC")
-        );
-
-        date.clear();
-        date.set(year, month - 1, day);
-
-        return date;
-    }
-
-    // 매월 1일 별자리 생성
-    private int calculateConstellationMask(
-            Calendar start, Calendar today) {
-
-        if (today.before(start)) {
-            return 0;
-        }
-
-        Calendar first = (Calendar) start.clone();
-        first.set(Calendar.DAY_OF_MONTH, 1);
-
-        if (first.before(start)) {
-            first.add(Calendar.MONTH, 1);
-        }
-
-        int mask = 0;
-
-        while (!first.after(today)) {
-
-            int monthIndex =
-                    first.get(Calendar.MONTH);
-
-            // 이미 있는 별자리는 추가되지 않음
-            mask |= (1 << monthIndex);
-
-            // 12종 모두 생성되면 종료
-            if (mask == 0xFFF) {
-                break;
-            }
-
-            first.add(Calendar.MONTH, 1);
-        }
-
-        return mask;
-    }
-
+    // 날짜 계산은 common/GalaxyDates (CourtReconcileActivity와 같은 계산)
     private void updateGalaxy() {
 
-        Calendar localNow = Calendar.getInstance();
-
-        Calendar today = makeDate(
-                localNow.get(Calendar.YEAR),
-                localNow.get(Calendar.MONTH) + 1,
-                localNow.get(Calendar.DAY_OF_MONTH)
-        );
-
-        // 날짜 시뮬레이션
-        today.add(
-                Calendar.DAY_OF_MONTH,
-                TEST_ADD_DAYS
-        );
-
-        Calendar start = makeDate(
-                startYear,
-                startMonth,
-                startDay
-        );
+        // 오늘 (기기 시간대 날짜) + 날짜 시뮬레이션
+        LocalDate today = GalaxyDates.today()
+                .plusDays(TEST_ADD_DAYS);
 
         // 경과 일수
-        long diff =
-                today.getTimeInMillis()
-                        - start.getTimeInMillis();
-
-        int days = (int) Math.max(
-                0,
-                diff / 86400000L
-        );
+        int days = GalaxyDates.elapsedDays(startDate, today);
 
         // 경과 개월 수
-        int months = 0;
+        int months = GalaxyDates.elapsedMonths(startDate, today);
 
-        if (!today.before(start)) {
-
-            while (true) {
-
-                Calendar next = (Calendar) start.clone();
-
-                next.add(
-                        Calendar.MONTH,
-                        months + 1
-                );
-
-                if (next.after(today)) {
-                    break;
-                }
-
-                months++;
-            }
-        }
-
+        // 매월 1일 별자리
         int constellationMask =
-                calculateConstellationMask(start, today);
+                GalaxyDates.constellationMask(startDate, today);
 
 
         // 원래 가지고 있는 애기별 개수
@@ -667,8 +574,12 @@ public class GalaxyActivity extends Activity {
                 constellationMask
         );
 
-        // 기존 초신성 / 백색왜성 테스트
-        galaxyView.setSpecialBodyCounts(1, 1);
+        // 특수천체: 1주년마다 초신성(크게 그려짐 = 많이 화려),
+        // 100일마다 백색왜성(작게 그려짐 = 덜 화려). 각각 GalaxyView에서 최대 20개로 제한
+        galaxyView.setSpecialBodyCounts(
+                GalaxyDates.yearCount(startDate, today),
+                GalaxyDates.hundredDayCount(startDate, today)
+        );
     }
 
     // ------------------------------------

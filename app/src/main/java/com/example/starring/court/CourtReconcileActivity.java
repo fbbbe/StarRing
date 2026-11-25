@@ -7,8 +7,9 @@ import android.os.Looper;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.TextView;
-import java.util.Calendar;
-import java.util.TimeZone;
+import com.example.starring.common.GalaxyDates;
+
+import java.time.LocalDate;
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -718,45 +719,17 @@ public class CourtReconcileActivity extends AppCompatActivity {
 
                     try {
 
-                        String[] parts =
-                                datingStartDate.split("-");
+                        // 날짜 계산은 common/GalaxyDates (GalaxyActivity와 같은 계산)
+                        LocalDate start =
+                                GalaxyDates.parseDate(datingStartDate);
 
-                        int year = Integer.parseInt(parts[0]);
-                        int month = Integer.parseInt(parts[1]);
-                        int day = Integer.parseInt(parts[2]);
+                        if (start == null) {
+                            // 형식이 틀리거나 없는 날짜 → 아래 catch에서 기존과 같은 안내 문구
+                            throw new IllegalArgumentException(datingStartDate);
+                        }
 
-                        TimeZone utc =
-                                TimeZone.getTimeZone("UTC");
-
-                        Calendar start =
-                                Calendar.getInstance(utc);
-
-                        start.clear();
-                        start.setLenient(false);
-                        start.set(year, month - 1, day);
-
-                        Calendar localNow =
-                                Calendar.getInstance();
-
-                        Calendar today =
-                                Calendar.getInstance(utc);
-
-                        today.clear();
-                        today.set(
-                                localNow.get(Calendar.YEAR),
-                                localNow.get(Calendar.MONTH),
-                                localNow.get(Calendar.DAY_OF_MONTH)
-                        );
-
-                        long days =
-                                (today.getTimeInMillis()
-                                        - start.getTimeInMillis())
-                                        / 86400000L;
-
-                        availableStars = (int) Math.max(
-                                0L,
-                                Math.min(days, Integer.MAX_VALUE)
-                        );
+                        availableStars = GalaxyDates.elapsedDays(
+                                start, GalaxyDates.today());
 
                         render();
 
