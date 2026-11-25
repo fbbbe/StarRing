@@ -531,7 +531,7 @@ public class BlackholeEffect {
 
         messageIndex++;
 
-        CourtNotice.show(activity, message);
+        CourtNotice.show(activity, message, true);
     }
 
     private static Activity findActivity(Context context) {

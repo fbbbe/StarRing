@@ -161,6 +161,18 @@ public class GalaxyActivity extends Activity {
 
         setContentView(R.layout.activity_galaxy);
 
+        // 우측 상단 은하계 이름 (로딩 화면에서 받은 이름)
+        TextView textGalaxyName = findViewById(R.id.textGalaxyName);
+
+        String galaxyName = getIntent().getStringExtra(
+                GalaxyLoadingActivity.EXTRA_GALAXY_NAME
+        );
+
+        if (galaxyName != null && !galaxyName.trim().isEmpty()) {
+            textGalaxyName.setText(galaxyName.trim() + " 은하계");
+            textGalaxyName.setVisibility(View.VISIBLE);
+        }
+
         // 은하계 로딩 화면에서 받은 만난 날짜
         String startDate = getIntent().getStringExtra(
                 GalaxyLoadingActivity.EXTRA_START_DATE
@@ -678,20 +690,12 @@ public class GalaxyActivity extends Activity {
             return;
         }
 
-        if (post.isExpired()) {
-
-            galaxyView.setBlackholeLabel(
-                    "마감됨",
-                    false
-            );
-
-        } else {
-
-            galaxyView.setBlackholeLabel(
-                    post.remainingClock(),
-                    post.isUrgent()
-            );
-        }
+        // 마감된 블랙홀도 시간 대신 글자를 바꾸지 않고 00:00:00 으로 표시하고,
+// 마감됐거나 1시간 미만이면 빨간색으로 깜빡임
+        galaxyView.setBlackholeLabel(
+                post.remainingClock(),
+                post.isExpired() || post.isUrgent()
+        );
     }
 
 
