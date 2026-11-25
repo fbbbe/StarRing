@@ -140,6 +140,120 @@ public class PlanetWorldView extends View {
             {0.50f, 0.04f}, {0.30f, 0.97f}
     };
 
+    // ------------------------------------
+    // 행성 테마 (색 + 표면 장식 + 고리 + 핀 색)
+    // ------------------------------------
+
+    public static final class Theme {
+
+        public final String name;
+        public final int[] planet;      // 행성 몸 그라데이션 3색 (밝음 -> 어두움)
+        final boolean ring;
+        final int ringOuter;
+        final int ringInner;
+        final int patch;                // 땅 무늬
+        final int crater;               // 움푹 들어간 곳
+        final int rim;                  // 행성 테두리
+        final int tw1;                  // 배경 반짝이 색 두 가지
+        final int tw2;
+        final int[] decor;              // 표면 장식 6종 (순서대로 반복)
+        final int pinDark;
+        final int pinMid;
+        final int pinMain;
+        final int pinSoft;
+
+        Theme(String name, int[] planet, boolean ring,
+              int ringOuter, int ringInner,
+              int patch, int crater, int rim,
+              int tw1, int tw2, int[] decor,
+              int pinDark, int pinMid, int pinMain, int pinSoft) {
+
+            this.name = name;
+            this.planet = planet;
+            this.ring = ring;
+            this.ringOuter = ringOuter;
+            this.ringInner = ringInner;
+            this.patch = patch;
+            this.crater = crater;
+            this.rim = rim;
+            this.tw1 = tw1 & 0x00FFFFFF;
+            this.tw2 = tw2 & 0x00FFFFFF;
+            this.decor = decor;
+            this.pinDark = pinDark;
+            this.pinMid = pinMid;
+            this.pinMain = pinMain;
+            this.pinSoft = pinSoft;
+        }
+    }
+
+    // 장식 번호: 0 꽃, 1 버섯, 2 나무, 3 새싹, 4 깃발, 5 수정,
+    //           6 하트, 7 별, 8 눈 쌓인 소나무, 9 눈송이, 10 선인장, 11 사탕
+    public static final Theme[] THEMES = {
+
+            new Theme("라벤더",
+                    new int[]{0xFFE4DBFF, 0xFFB5A5F5, 0xFF8574DE}, true,
+                    0xCCF7B7D8, 0xCCF3C969,
+                    0x55FFC2DC, 0x336C58C8, 0x66FFFFFF,
+                    0xF3C969, 0x9C8CF0,
+                    new int[]{0, 1, 2, 3, 4, 5},
+                    0xFF6C58C8, 0xFF9C8CF0, 0xFF7F6BE0, 0xFFEFEAFF),
+
+            new Theme("벚꽃",
+                    new int[]{0xFFFFE9F1, 0xFFFFBBD3, 0xFFE985AE}, true,
+                    0xCCFFD6E6, 0xCCFFFFFF,
+                    0x55FFFFFF, 0x33C2527F, 0x77FFFFFF,
+                    0xF7A8CB, 0xFFD7E8,
+                    new int[]{6, 0, 7, 6, 0, 3},
+                    0xFFC2527F, 0xFFEF9CBC, 0xFFE0679B, 0xFFFFEAF2),
+
+            new Theme("초록 숲",
+                    new int[]{0xFFE3F7E8, 0xFFA9DDBB, 0xFF5FB88C}, false,
+                    0, 0,
+                    0x55F4FFD6, 0x33336B50, 0x66FFFFFF,
+                    0x8FD6A8, 0xF3E08A,
+                    new int[]{2, 3, 1, 0, 2, 4},
+                    0xFF3E8C66, 0xFF84CBA2, 0xFF4FAF7E, 0xFFE9F8EE),
+
+            new Theme("바다",
+                    new int[]{0xFFE1F3FF, 0xFF9FD0F7, 0xFF5D9FE3}, true,
+                    0xCCFFFFFF, 0xCC9ED6FF,
+                    0x66FFFFFF, 0x334170B8, 0x77FFFFFF,
+                    0x8CCDFF, 0xFFFFFF,
+                    new int[]{5, 7, 4, 5, 7, 0},
+                    0xFF3F74B8, 0xFF8CBFEF, 0xFF4F8FDB, 0xFFE8F4FF),
+
+            new Theme("겨울",
+                    new int[]{0xFFFFFFFF, 0xFFE1EAFB, 0xFFAEC2E6}, true,
+                    0xCCDCE7FA, 0xCCFFFFFF,
+                    0x66FFFFFF, 0x335A78B5, 0x99FFFFFF,
+                    0xBFD4F5, 0xFFFFFF,
+                    new int[]{8, 9, 8, 7, 9, 5},
+                    0xFF5A78B5, 0xFF9DB4DE, 0xFF6F8FD0, 0xFFEEF3FF),
+
+            new Theme("노을",
+                    new int[]{0xFFFFEBD6, 0xFFFFBE92, 0xFFEC8764}, true,
+                    0xCCFFD9A8, 0xCCFFF3C4,
+                    0x55FFE0B0, 0x33B5523A, 0x77FFFFFF,
+                    0xFFC97A, 0xFF9DB8,
+                    new int[]{10, 0, 11, 4, 10, 7},
+                    0xFFC2603F, 0xFFF0A27E, 0xFFE0714B, 0xFFFFF0E4)
+    };
+
+    private Theme theme = THEMES[0];
+
+    /** 테마 번호로 행성 모양을 바꿈 (범위를 벗어나면 첫 번째 테마) */
+    public void setTheme(int index) {
+
+        Theme next = index >= 0 && index < THEMES.length
+                ? THEMES[index]
+                : THEMES[0];
+
+        if (next != theme) {
+            theme = next;
+            invalidate();
+        }
+    }
+
     public PlanetWorldView(Context context) {
         super(context);
         init();
@@ -310,7 +424,7 @@ public class PlanetWorldView extends View {
             paint.setStyle(Paint.Style.FILL);
             paint.setColor(
                     ((int) (alpha * 200) << 24)
-                            | (i % 2 == 0 ? 0x00F3C969 : 0x009C8CF0));
+                            | (i % 2 == 0 ? theme.tw1 : theme.tw2));
 
             drawSparkle(
                     canvas,
@@ -325,6 +439,10 @@ public class PlanetWorldView extends View {
 
     private void drawRing(Canvas canvas, boolean back) {
 
+        if (!theme.ring) {
+            return;
+        }
+
         float rx = radius * 1.5f;
         float ry = radius * 0.36f;
 
@@ -336,13 +454,13 @@ public class PlanetWorldView extends View {
 
         // 굵은 분홍 띠
         strokePaint.setStrokeWidth(6f * density);
-        strokePaint.setColor(0xCCF7B7D8);
+        strokePaint.setColor(theme.ringOuter);
         rect.set(-rx, -ry, rx, ry);
         canvas.drawArc(rect, back ? 180f : 0f, 180f, false, strokePaint);
 
         // 안쪽 얇은 금색 띠
         strokePaint.setStrokeWidth(1.8f * density);
-        strokePaint.setColor(0xCCF3C969);
+        strokePaint.setColor(theme.ringInner);
         rect.set(-rx * 0.93f, -ry * 0.93f, rx * 0.93f, ry * 0.93f);
         canvas.drawArc(rect, back ? 180f : 0f, 180f, false, strokePaint);
 
@@ -362,7 +480,7 @@ public class PlanetWorldView extends View {
                 cx - radius * 0.35f,
                 cy - radius * 0.40f,
                 radius * 1.7f,
-                new int[]{0xFFE4DBFF, 0xFFB5A5F5, 0xFF8574DE},
+                theme.planet,
                 new float[]{0f, 0.5f, 1f},
                 Shader.TileMode.CLAMP
         ));
@@ -370,14 +488,14 @@ public class PlanetWorldView extends View {
         paint.setShader(null);
 
         // 분홍 무늬 (땅 색이 다른 곳)
-        paint.setColor(0x55FFC2DC);
+        paint.setColor(theme.patch);
         patch(canvas, -0.35f, -0.25f, 0.24f, 0.17f);
         patch(canvas, 0.42f, 0.08f, 0.20f, 0.26f);
         patch(canvas, -0.12f, 0.52f, 0.28f, 0.16f);
         patch(canvas, 0.22f, -0.55f, 0.14f, 0.10f);
 
         // 움푹 들어간 곳 (귀여운 점 같은 크레이터)
-        paint.setColor(0x336C58C8);
+        paint.setColor(theme.crater);
         patch(canvas, -0.55f, 0.15f, 0.10f, 0.07f);
         patch(canvas, 0.05f, -0.10f, 0.12f, 0.08f);
         patch(canvas, 0.58f, -0.35f, 0.07f, 0.05f);
@@ -386,7 +504,7 @@ public class PlanetWorldView extends View {
         // 테두리
         strokePaint.setShader(null);
         strokePaint.setStrokeWidth(2f * density);
-        strokePaint.setColor(0x66FFFFFF);
+        strokePaint.setColor(theme.rim);
         canvas.drawCircle(cx, cy, radius - density, strokePaint);
     }
 
@@ -416,7 +534,7 @@ public class PlanetWorldView extends View {
             canvas.rotate(angle);
             canvas.translate(0f, -radius + 1.5f * density);
 
-            drawDecoration(canvas, k % 6);
+            drawDecoration(canvas, theme.decor[k % theme.decor.length]);
 
             canvas.restore();
         }
@@ -486,6 +604,83 @@ public class PlanetWorldView extends View {
                 tmpPath.close();
                 paint.setColor(0xFFFFE08A);
                 canvas.drawPath(tmpPath, paint);
+                break;
+
+            case 6: // 하트
+                strokePaint.setStrokeWidth(1.6f * d);
+                strokePaint.setColor(0xFF7FBF9A);
+                canvas.drawLine(0f, 0f, 0f, -4f * d, strokePaint);
+                tmpPath.reset();
+                tmpPath.moveTo(0f, -5f * d);
+                tmpPath.cubicTo(-8f * d, -10f * d, -4.5f * d, -16f * d, 0f, -12f * d);
+                tmpPath.cubicTo(4.5f * d, -16f * d, 8f * d, -10f * d, 0f, -5f * d);
+                tmpPath.close();
+                paint.setColor(0xFFFF7FAE);
+                canvas.drawPath(tmpPath, paint);
+                break;
+
+            case 7: // 별
+                strokePaint.setStrokeWidth(1.6f * d);
+                strokePaint.setColor(0xFFFFF4E6);
+                canvas.drawLine(0f, 0f, 0f, -6f * d, strokePaint);
+                paint.setColor(0xFFFFE08A);
+                drawSparkle(canvas, 0f, -10.5f * d, 4.8f * d);
+                break;
+
+            case 8: // 눈 쌓인 소나무
+                strokePaint.setStrokeWidth(2.2f * d);
+                strokePaint.setColor(0xFFB98E6A);
+                canvas.drawLine(0f, 0f, 0f, -4f * d, strokePaint);
+                tmpPath.reset();
+                tmpPath.moveTo(0f, -15f * d);
+                tmpPath.lineTo(-5.5f * d, -4f * d);
+                tmpPath.lineTo(5.5f * d, -4f * d);
+                tmpPath.close();
+                paint.setColor(0xFF8CCFA6);
+                canvas.drawPath(tmpPath, paint);
+                tmpPath.reset();
+                tmpPath.moveTo(0f, -15f * d);
+                tmpPath.lineTo(-2.6f * d, -10.5f * d);
+                tmpPath.lineTo(2.6f * d, -10.5f * d);
+                tmpPath.close();
+                paint.setColor(0xFFFFFFFF);
+                canvas.drawPath(tmpPath, paint);
+                break;
+
+            case 9: // 눈송이
+                strokePaint.setStrokeWidth(1.4f * d);
+                strokePaint.setColor(0xFFFFFFFF);
+                canvas.drawLine(0f, 0f, 0f, -3f * d, strokePaint);
+                canvas.save();
+                canvas.translate(0f, -9f * d);
+                for (int s = 0; s < 3; s++) {
+                    canvas.drawLine(0f, -5.5f * d, 0f, 5.5f * d, strokePaint);
+                    canvas.rotate(60f);
+                }
+                canvas.restore();
+                break;
+
+            case 10: // 선인장
+                strokePaint.setStrokeWidth(4f * d);
+                strokePaint.setColor(0xFF8CCB9B);
+                canvas.drawLine(0f, -1f * d, 0f, -10f * d, strokePaint);
+                strokePaint.setStrokeWidth(2.8f * d);
+                canvas.drawLine(0f, -5.5f * d, -4.4f * d, -5.5f * d, strokePaint);
+                canvas.drawLine(-4.4f * d, -5.5f * d, -4.4f * d, -8.5f * d, strokePaint);
+                canvas.drawLine(0f, -4f * d, 4.4f * d, -4f * d, strokePaint);
+                canvas.drawLine(4.4f * d, -4f * d, 4.4f * d, -6.8f * d, strokePaint);
+                paint.setColor(0xFFFF9DB8);
+                canvas.drawCircle(0f, -12.2f * d, 1.7f * d, paint);
+                break;
+
+            case 11: // 사탕
+                strokePaint.setStrokeWidth(1.6f * d);
+                strokePaint.setColor(0xFFFFFFFF);
+                canvas.drawLine(0f, 0f, 0f, -8f * d, strokePaint);
+                paint.setColor(0xFFFF9DB8);
+                canvas.drawCircle(0f, -11.5f * d, 4.2f * d, paint);
+                paint.setColor(0xFFFFFFFF);
+                canvas.drawCircle(0f, -11.5f * d, 1.7f * d, paint);
                 break;
 
             default: // 반짝 수정
@@ -676,7 +871,7 @@ public class PlanetWorldView extends View {
 
         strokePaint.setShader(null);
         strokePaint.setStrokeWidth(2.4f * density);
-        strokePaint.setColor(0xFF6C58C8);
+        strokePaint.setColor(theme.pinDark);
         canvas.drawLine(
                 0f, -radius + 2f * density,
                 0f, -radius - (PIN_STEM_DP + 4f) * density,
@@ -685,7 +880,7 @@ public class PlanetWorldView extends View {
 
         // 땅에 닿는 작은 점
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(0xFF6C58C8);
+        paint.setColor(theme.pinDark);
         canvas.drawCircle(0f, -radius + 1f * density, 2.6f * density, paint);
 
         canvas.restore();
@@ -717,10 +912,10 @@ public class PlanetWorldView extends View {
         } else {
 
             // 사진이 아직 오는 중이면 연보라 원 + 반짝이
-            paint.setColor(0xFFEFEAFF);
+            paint.setColor(theme.pinSoft);
             canvas.drawCircle(hx, hy, headR, paint);
 
-            paint.setColor(0xFF9C8CF0);
+            paint.setColor(theme.pinMid);
             drawSparkle(canvas, hx, hy, headR * 0.5f);
         }
 
@@ -734,7 +929,7 @@ public class PlanetWorldView extends View {
             rect.set(hx - pillW / 2f, pillY - pillH / 2f,
                     hx + pillW / 2f, pillY + pillH / 2f);
 
-            paint.setColor(0xFF7F6BE0);
+            paint.setColor(theme.pinMain);
             canvas.drawRoundRect(rect, pillH / 2f, pillH / 2f, paint);
 
             textPaint.setColor(0xFFFFFFFF);
