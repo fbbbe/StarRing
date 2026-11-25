@@ -2,6 +2,7 @@ package com.example.starring.common;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
 
@@ -225,6 +226,68 @@ public class GalaxyDatesTest {
                 assertEquals("mask " + start + "+" + add,
                         legacyMask(s, t), GalaxyDates.constellationMask(start, today));
             }
+        }
+    }
+
+    /**
+     * 통합(GalaxyActivity·CourtReconcileActivity → GalaxyDates) 전후 결과가 같은지 전수 비교.
+     * 만난 날 2015-01-01 ~ 2028-12-31 중 매 3일, 각 만난 날마다 오늘 = 만난 날 -40일 ~ +4000일(매 13일)
+     * → 윤년(2/29)·월말(31일)·만난 날이 미래인 경우 포함.
+     */
+    @Test
+    public void matchesLegacyLogic_exhaustive() {
+        int checked = 0;
+        for (LocalDate start = d(2015, 1, 1); !start.isAfter(d(2028, 12, 31)); start = start.plusDays(3)) {
+            for (int add = -40; add <= 4000; add += 13) {
+                LocalDate today = start.plusDays(add);
+                Calendar s = utc(start);
+                Calendar t = utc(today);
+                String at = start + " → " + today;
+                // GalaxyActivity
+                assertEquals("days " + at, legacyDays(s, t), GalaxyDates.elapsedDays(start, today));
+                assertEquals("months " + at, legacyMonths(s, t), GalaxyDates.elapsedMonths(start, today));
+                assertEquals("mask " + at, legacyMask(s, t), GalaxyDates.constellationMask(start, today));
+                // CourtReconcileActivity (문자열 → 애기별 개수)
+                String str = GalaxyDates.formatDate(start);
+                assertEquals("court " + at, legacyCourtStars(str, today),
+                        Integer.valueOf(GalaxyDates.elapsedDays(GalaxyDates.parseDate(str), today)));
+                checked++;
+            }
+        }
+        assertTrue(checked > 500_000);
+    }
+
+    /** 잘못된 문자열은 통합 전 CourtReconcile도 예외(→ 안내 문구), 통합 후 parseDate도 null(→ 같은 안내 문구) */
+    @Test
+    public void courtLegacy_rejectsSameInvalidDates() {
+        LocalDate today = d(2026, 11, 25);
+        for (String bad : new String[]{"2024-02-31", "2023-02-29", "2024-13-01", "2024-00-10",
+                "2024-04-31", "abc", "2024-05", ""}) {
+            assertNull("legacy " + bad, legacyCourtStars(bad, today));
+            assertNull("new " + bad, GalaxyDates.parseDate(bad));
+        }
+    }
+
+    // CourtReconcileActivity.loadAvailableStars의 계산부 복사본. 예외(잘못된 날짜)면 null
+    private static Integer legacyCourtStars(String datingStartDate, LocalDate localToday) {
+        try {
+            String[] parts = datingStartDate.split("-");
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]);
+            int day = Integer.parseInt(parts[2]);
+            TimeZone utc = TimeZone.getTimeZone("UTC");
+            Calendar start = Calendar.getInstance(utc);
+            start.clear();
+            start.setLenient(false);
+            start.set(year, month - 1, day);
+            Calendar today = Calendar.getInstance(utc);
+            today.clear();
+            // 원본은 Calendar.getInstance()(기기 시간대)의 연/월/일 → 여기서는 localToday로 대체
+            today.set(localToday.getYear(), localToday.getMonthValue() - 1, localToday.getDayOfMonth());
+            long days = (today.getTimeInMillis() - start.getTimeInMillis()) / 86400000L;
+            return (int) Math.max(0L, Math.min(days, Integer.MAX_VALUE));
+        } catch (Exception e) {
+            return null;
         }
     }
 
