@@ -795,14 +795,26 @@ public class GalaxyView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        // 블랙홀이 있을 때 가끔 화면 전체가 흔들림 (평소엔 0)
+        canvas.save();
+        canvas.translate(blackholeEffect.shakeX(), blackholeEffect.shakeY());
+
         drawStars(canvas);
         drawBodies(canvas, visibleConstellations);
         drawBodies(canvas, visibleSpecialBodies);
         drawBodies(canvas, visiblePlanets);
         drawBlackhole(canvas);   // na가 추가
+
+        canvas.restore();
+
         // 행성이 떠다니도록 계속 다시 그림 (행성이 있을 때만)
         if (!visiblePlanets.isEmpty()) {
             postInvalidateDelayed(33L);
+        }
+
+        // 흔들리는 동안은 부드럽게 보이도록 프레임마다 다시 그림
+        if (blackholeEffect.isShaking()) {
+            postInvalidateOnAnimation();
         }
     }
 

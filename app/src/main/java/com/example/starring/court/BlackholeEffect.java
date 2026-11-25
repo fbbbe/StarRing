@@ -1,12 +1,16 @@
 package com.example.starring.court;
 
 import android.animation.ValueAnimator;
+import android.app.Activity;
+import android.content.Context;
+import android.content.ContextWrapper;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Typeface;
 import android.graphics.drawable.Animatable;
 import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
+import android.provider.Settings;
 import android.view.View;
 import android.view.animation.OvershootInterpolator;
 
@@ -75,6 +79,31 @@ public class BlackholeEffect {
     // 타이머 글자 크기 (기존 14 → 11). 더 줄이려면 10, 키우려면 12
     private static final float TIMER_TEXT_SP = 11f;
 
+    // ------------------------------------
+    // 가끔 화면이 흔들리고 화해 메시지가 뜨는 연출 (드물게)
+    // ------------------------------------
+
+    // 블랙홀이 나타난(또는 화면에 들어온) 뒤 첫 흔들림까지 기다리는 시간 (ms)
+    private static final long SHAKE_FIRST_MIN_MS = 25000L;
+    private static final long SHAKE_FIRST_MAX_MS = 45000L;
+
+    // 흔들림과 흔들림 사이 간격 (ms): 1분 10초 ~ 2분 10초
+    private static final long SHAKE_GAP_MIN_MS = 70000L;
+    private static final long SHAKE_GAP_MAX_MS = 130000L;
+
+    // 흔들리는 시간 (ms)과 세기 (dp, 점점 약해짐)
+    private static final long SHAKE_MS = 900L;
+    private static final float SHAKE_AMP_DP = 3.5f;
+
+    // 흔들릴 때마다 하나씩 돌아가며 나오는 문구
+    // (화면 하단 중앙의 안내 메시지 CourtNotice 로 표시됨)
+    private static final String[] PEACE_MESSAGES = {
+            "블랙홀이 흔들려요… 화해해 볼까요?",
+            "곧 판결이 내려져요. 먼저 손 내밀어요",
+            "서로의 마음을 먼저 들어줄까요?",
+            "아직 늦지 않았어요. 화해해요"
+    };
+
     // 벡터 그림의 실제 내용 높이 비율 (타이머를 블랙홀 바로 아래에 두는 기준)
     private static final float CONTENT_HALF_HEIGHT = 0.4f;
 
@@ -89,6 +118,13 @@ public class BlackholeEffect {
 
     private final Paint starPaint =
             new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    private final Random shakeRandom = new Random();
+
+    // 다음 흔들림 시각, 지금 흔들림이 시작된 시각 (uptimeMillis, 없으면 -1)
+    private long nextShakeAt = -1L;
+    private long shakeStartAt = -1L;
+    private int messageIndex = 0;
 
     // 별마다 다른 값 (생성할 때 한 번만 정하므로 언제 봐도 같은 모양)
     private final float[] starAngle = new float[STAR_COUNT];
@@ -166,6 +202,8 @@ public class BlackholeEffect {
 
             phase = (SystemClock.uptimeMillis() % SPIN_MS)
                     / (float) SPIN_MS;
+
+            updateShake(SystemClock.uptimeMillis());
 
             host.invalidate();
 
@@ -451,6 +489,113 @@ public class BlackholeEffect {
                     textPaint
             );
         }
+
+    }
+
+    // ------------------------------------
+    // 가끔 흔들림: 시각 관리 / 흔들림 크기
+    // ------------------------------------
+
+    private long randomBetween(long min, long max) {
+        return min + (long) (shakeRandom.nextDouble() * (max - min));
+    }
+
+    /** 흔들릴 때가 됐는지 확인 (반복 갱신에서 호출) */
+    private void updateShake(long now) {
+
+        if (!visible || nextShakeAt < 0L || now < nextShakeAt) {
+            return;
+        }
+
+        // 메시지는 항상 보여주고, 흔들림은 시스템 "애니메이션 끄기" 설정을 존중
+        showPeaceMessage();
+
+        shakeStartAt = animationsEnabled() ? now : -1L;
+
+        nextShakeAt = now + randomBetween(SHAKE_GAP_MIN_MS, SHAKE_GAP_MAX_MS);
+    }
+
+    /** 화면 하단 중앙에 화해 메시지를 띄움 (블랙홀 생성 안내와 같은 모양) */
+    private void showPeaceMessage() {
+
+        Activity activity = findActivity(host.getContext());
+
+        if (activity == null
+                || activity.isFinishing()
+                || activity.isDestroyed()) {
+            return;
+        }
+
+        String message =
+                PEACE_MESSAGES[messageIndex % PEACE_MESSAGES.length];
+
+        messageIndex++;
+
+        CourtNotice.show(activity, message);
+    }
+
+    private static Activity findActivity(Context context) {
+
+        while (context instanceof ContextWrapper) {
+
+            if (context instanceof Activity) {
+                return (Activity) context;
+            }
+
+            context = ((ContextWrapper) context).getBaseContext();
+        }
+
+        return null;
+    }
+
+    private boolean animationsEnabled() {
+
+        try {
+            return Settings.Global.getFloat(
+                    host.getContext().getContentResolver(),
+                    Settings.Global.ANIMATOR_DURATION_SCALE,
+                    1f
+            ) > 0f;
+        } catch (RuntimeException e) {
+            return true;
+        }
+    }
+
+    /** 지금 화면이 흔들리는 중인지 (흔들리는 동안만 부드럽게 다시 그리기 위해) */
+    public boolean isShaking() {
+
+        return visible
+                && shakeStartAt >= 0L
+                && SystemClock.uptimeMillis() - shakeStartAt <= SHAKE_MS;
+    }
+
+    /** 화면 전체에 더할 가로 흔들림(px). 흔들리지 않을 때는 0 */
+    public float shakeX() {
+        return shakeOffset(true);
+    }
+
+    /** 화면 전체에 더할 세로 흔들림(px). 흔들리지 않을 때는 0 */
+    public float shakeY() {
+        return shakeOffset(false);
+    }
+
+    private float shakeOffset(boolean horizontal) {
+
+        if (!isShaking()) {
+            return 0f;
+        }
+
+        long elapsed = SystemClock.uptimeMillis() - shakeStartAt;
+
+        // 점점 약해짐
+        float decay = 1f - elapsed / (float) SHAKE_MS;
+        float amp = SHAKE_AMP_DP * density * decay;
+
+        double t = elapsed / 1000.0;
+
+        return horizontal
+                ? (float) (Math.sin(2.0 * Math.PI * 17.0 * t) * amp)
+                : (float) (Math.cos(2.0 * Math.PI * 23.0 * t) * amp * 0.6f);
     }
 
     // ------------------------------------
@@ -568,6 +713,10 @@ public class BlackholeEffect {
 
         looping = true;
 
+        // 보이자마자 흔들리지 않도록, 처음엔 한참 있다가 첫 흔들림
+        nextShakeAt = SystemClock.uptimeMillis()
+                + randomBetween(SHAKE_FIRST_MIN_MS, SHAKE_FIRST_MAX_MS);
+
         if (drawable instanceof Animatable) {
             ((Animatable) drawable).start();
         }
@@ -588,6 +737,10 @@ public class BlackholeEffect {
         }
 
         looping = false;
+
+        // 흔들림/메시지 정리
+        nextShakeAt = -1L;
+        shakeStartAt = -1L;
 
         host.removeCallbacks(
                 loopRunnable
