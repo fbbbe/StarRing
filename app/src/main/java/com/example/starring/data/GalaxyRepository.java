@@ -588,8 +588,12 @@ public class GalaxyRepository {
         return new ArrayList<>();
     }
 
-    /** 예외(원인 체인 포함)가 Firestore 보안 규칙 거부인지 */
-    private static boolean isPermissionDenied(Exception e) {
+    /**
+     * 예외(원인 체인 포함)가 Firestore 보안 규칙 거부인지.
+     * 은하계 조회가 거부되면 "해제된 은하계"로 판단하는 데도 쓴다
+     * (rules: 해제(unlinked)된 은하계와 내가 멤버가 아닌 은하계는 조회 불가) — MainActivity, CoupleLinkActivity.
+     */
+    public static boolean isPermissionDenied(Exception e) {
         Throwable t = e;
         while (t != null) {
             if (t instanceof FirebaseFirestoreException

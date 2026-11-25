@@ -204,7 +204,12 @@ public class CoupleLinkActivity extends AppCompatActivity {
         galaxyId = gid;
         galaxyListener = galaxyRepository.watchGalaxy(gid, (snap, e) -> {
             if (e != null) {
-                showError(ErrorMessages.toMessage(e));
+                if (GalaxyRepository.isPermissionDenied(e)) {
+                    // 상대가 해제하면 rules상 은하계를 조회할 수 없음 → 해제된 것으로 처리
+                    handleUnlinked();
+                } else {
+                    showError(ErrorMessages.toMessage(e));
+                }
                 return;
             }
             if (snap != null) {
@@ -241,15 +246,22 @@ public class CoupleLinkActivity extends AppCompatActivity {
         } else if (GalaxyStatus.ACTIVE.equals(status)) {
             goMain();
         } else if (GalaxyStatus.UNLINKED.equals(status)) {
-            // 이름을 정하기 전에 상대가 연결을 취소함
-            stopWatching();
-            galaxyId = null;
-            userRepository.clearGalaxyId(uid);
-            if (!selfLeaving) {
-                Toast.makeText(this, R.string.unlink_by_partner, Toast.LENGTH_LONG).show();
-            }
-            show(Panel.CHOOSE);
+            handleUnlinked();
         }
+    }
+
+    /** 이름을 정하기 전에 상대가 연결을 취소함 (상태가 unlinked이거나, 해제돼서 조회가 거부됨) → 내 galaxyId 정리 */
+    private void handleUnlinked() {
+        if (leaving) {
+            return;
+        }
+        stopWatching();
+        galaxyId = null;
+        userRepository.clearGalaxyId(uid);
+        if (!selfLeaving) {
+            Toast.makeText(this, R.string.unlink_by_partner, Toast.LENGTH_LONG).show();
+        }
+        show(Panel.CHOOSE);
     }
 
     private void goMain() {
