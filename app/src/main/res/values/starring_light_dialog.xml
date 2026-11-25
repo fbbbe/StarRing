@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 날짜 선택 / 사진 정보 수정 창: 흰 바탕 + 연보라 포인트 -->
+    <style name="StarRing.LightDialog" parent="android:Theme.Material.Light.Dialog.Alert">
+        <item name="android:colorAccent">#7F6BE0</item>
+        <item name="android:colorControlActivated">#7F6BE0</item>
+        <item name="android:textColorPrimary">#3F3A5A</item>
+        <item name="android:textColorSecondary">#8F89A8</item>
+    </style>
+
+</resources>

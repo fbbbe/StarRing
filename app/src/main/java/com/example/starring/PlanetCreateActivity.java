@@ -4,7 +4,15 @@ import android.app.DatePickerDialog;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.content.Context;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Paint;
+import android.graphics.RadialGradient;
+import android.graphics.Shader;
+import android.util.TypedValue;
+import android.widget.ImageButton;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -52,6 +60,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Random;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -64,6 +73,19 @@ import java.util.concurrent.Executors;
 public class PlanetCreateActivity extends AppCompatActivity {
 
     private static final int MAX_PHOTOS = 100;
+
+    // 화면 색상 (연한 라벤더 계열)
+    private static final int C_BG = 0xFFF8F5FF;
+    private static final int C_BAR = 0xFFF1ECFC;
+    private static final int C_CARD = 0xF7FFFFFF;
+    private static final int C_LINE = 0xFFE7E0F8;
+    private static final int C_TEXT = 0xFF3F3A5A;
+    private static final int C_SUB = 0xFF8F89A8;
+    private static final int C_HINT = 0xFFB5B0C9;
+    private static final int C_ACCENT = 0xFF7F6BE0;
+    private static final int C_ACCENT_SOFT = 0xFFEFEAFF;
+    private static final int C_ACCENT_LINE = 0xFFD3C9F5;
+    private static final int C_DANGER = 0xFFD9707F;
 
     private static final String[] PLANET_ASSETS = {
             "planet_01",
@@ -146,6 +168,8 @@ public class PlanetCreateActivity extends AppCompatActivity {
         existingPlanetId = getIntent()
                 .getStringExtra(EXTRA_PLANET_ID);
 
+        SpaceBackdrop.applyLightWindow(this);
+
         createScreen();
         refreshSelection();
 
@@ -163,27 +187,61 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(Color.WHITE);
 
-        // 상단: 뒤로가기 버튼만 배치
+        // 상태바/내비게이션 바 영역을 피해서 배치 (우주 재판장과 동일)
+        root.setFitsSystemWindows(true);
+
+        // 상단: 뒤로가기 + 제목 (우주 재판장 상단바와 같은 크기/배치)
         LinearLayout topBar = new LinearLayout(this);
         topBar.setGravity(Gravity.CENTER_VERTICAL);
-        topBar.setPadding(dp(20), 0, dp(20), 0);
-        topBar.setBackgroundColor(0xFFF0EFF4);
+        topBar.setPadding(dp(8), 0, dp(16), 0);
 
-        TextView back = text("‹", 42, 0xFF36343F, true);
-        back.setGravity(Gravity.CENTER);
+        ImageButton back = new ImageButton(this);
+        back.setImageResource(R.drawable.ic_court_back);
+        back.setColorFilter(C_TEXT);
         back.setContentDescription("뒤로가기");
 
+        TypedValue ripple = new TypedValue();
+        getTheme().resolveAttribute(
+                android.R.attr.selectableItemBackgroundBorderless,
+                ripple,
+                true
+        );
+        back.setBackgroundResource(ripple.resourceId);
+
         topBar.addView(back, new LinearLayout.LayoutParams(
-                dp(58), dp(64)
+                dp(48), dp(48)
         ));
+
+        TextView screenTitle = text(
+                existingPlanetId == null
+                        ? "새 행성 만들기"
+                        : "사진 추가",
+                20, C_TEXT, true
+        );
+
+        LinearLayout.LayoutParams titleParams =
+                new LinearLayout.LayoutParams(
+                        0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1f
+                );
+
+        titleParams.leftMargin = dp(4);
+
+        topBar.addView(screenTitle, titleParams);
 
         back.setOnClickListener(v -> {
             if (!saving) finish();
         });
 
-        root.addView(topBar);
+        LinearLayout.LayoutParams barParams =
+                new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        dp(56)
+                );
+
+        root.addView(topBar, barParams);
 
         // 스크롤 가능한 본문
         ScrollView scroll = new ScrollView(this);
@@ -191,7 +249,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
-        content.setPadding(dp(20), dp(20), dp(20), dp(20));
+        content.setPadding(dp(18), dp(16), dp(18), dp(16));
 
         scroll.addView(content);
 
@@ -207,10 +265,10 @@ public class PlanetCreateActivity extends AppCompatActivity {
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setPadding(
-                dp(16), dp(20), dp(16), dp(20)
+                dp(16), dp(18), dp(16), dp(20)
         );
         panel.setBackground(round(
-                0xFFF6F3FC, 0xFFE2DDEC, 1
+                C_CARD, C_LINE, 1, 24
         ));
 
         content.addView(panel);
@@ -220,60 +278,76 @@ public class PlanetCreateActivity extends AppCompatActivity {
         titleRow.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = text(
-                "사진 선택", 20, 0xFF55515E, true
+                "사진 선택", 18, C_TEXT, true
         );
 
         countText = text(
-                "0 / 100장", 16, 0xFF6B4CD8, true
+                "0 / 100장", 14, C_ACCENT, true
         );
+
+        countText.setGravity(Gravity.CENTER);
+        countText.setPadding(dp(12), 0, dp(12), 0);
+        countText.setBackground(round(
+                C_ACCENT_SOFT, C_ACCENT_SOFT, 0, 14
+        ));
 
         titleRow.addView(
                 title,
-                new LinearLayout.LayoutParams(0, dp(44), 1f)
+                new LinearLayout.LayoutParams(0, dp(40), 1f)
         );
 
-        countText.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
-        titleRow.addView(countText);
+        titleRow.addView(
+                countText,
+                new LinearLayout.LayoutParams(-2, dp(28))
+        );
 
         panel.addView(titleRow);
 
         // 갤러리 실행 버튼
         btnAddPhotos = text(
                 "＋  갤러리에서 사진 추가",
-                16,
-                0xFF694DD8,
+                15,
+                C_ACCENT,
                 true
         );
 
         btnAddPhotos.setGravity(Gravity.CENTER);
         btnAddPhotos.setBackground(round(
-                Color.WHITE, 0xFFCBC3EC, 1
+                C_ACCENT_SOFT, C_ACCENT_LINE, 1, 28
         ));
 
         LinearLayout.LayoutParams addParams =
                 new LinearLayout.LayoutParams(
-                        -1, dp(54)
+                        -1, dp(52)
                 );
 
+        addParams.topMargin = dp(8);
         addParams.bottomMargin = dp(14);
 
         panel.addView(btnAddPhotos, addParams);
 
         btnAddPhotos.setOnClickListener(v -> openGallery());
 
-        // 사진을 선택하지 않았을 때 표시
+        // 사진을 선택하지 않았을 때 표시 (점선 상자)
         emptyText = text(
-                "갤러리에서 사진을 선택해주세요.",
-                15,
-                0xFF9993AB,
+                "✦\n갤러리에서 사진을 선택해주세요.",
+                14,
+                C_SUB,
                 false
         );
 
         emptyText.setGravity(Gravity.CENTER);
+        emptyText.setLineSpacing(dp(6), 1f);
+
+        GradientDrawable emptyBg = new GradientDrawable();
+        emptyBg.setColor(C_BG);
+        emptyBg.setCornerRadius(dp(20));
+        emptyBg.setStroke(dp(1), C_ACCENT_LINE, dp(5), dp(4));
+        emptyText.setBackground(emptyBg);
 
         panel.addView(
                 emptyText,
-                new LinearLayout.LayoutParams(-1, dp(180))
+                new LinearLayout.LayoutParams(-1, dp(170))
         );
 
         // 선택한 사진 미리보기: 3열
@@ -295,9 +369,11 @@ public class PlanetCreateActivity extends AppCompatActivity {
         TextView guide = text(
                 "사진을 누르면 설명과 날짜를 따로 설정할 수 있어요.",
                 12,
-                0xFF8B849E,
+                C_SUB,
                 false
         );
+
+        guide.setGravity(Gravity.CENTER);
 
         LinearLayout.LayoutParams guideParams =
                 new LinearLayout.LayoutParams(-1, -2);
@@ -309,25 +385,25 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
         // 사진 설명
         TextView captionLabel = text(
-                "사진 설명", 15, 0xFF666071, true
+                "사진 설명", 14, C_TEXT, true
         );
 
         panel.addView(captionLabel);
 
         editCaption = new EditText(this);
-        editCaption.setTextSize(16);
-        editCaption.setTextColor(0xFF393343);
-        editCaption.setHintTextColor(0xFFABA8B2);
+        editCaption.setTextSize(15);
+        editCaption.setTextColor(C_TEXT);
+        editCaption.setHintTextColor(C_HINT);
         editCaption.setHint("선택한 사진의 추억을 입력해주세요.");
         editCaption.setSingleLine(false);
         editCaption.setMinLines(2);
         editCaption.setMaxLines(4);
         editCaption.setPadding(
-                dp(14), dp(12), dp(14), dp(12)
+                dp(16), dp(12), dp(16), dp(12)
         );
 
         editCaption.setBackground(round(
-                Color.WHITE, 0xFFCBC8D1, 1
+                C_BG, C_LINE, 1, 18
         ));
 
         LinearLayout.LayoutParams captionParams =
@@ -376,13 +452,13 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
         // 사진 날짜
         TextView dateLabel = text(
-                "사진 날짜", 15, 0xFF666071, true
+                "사진 날짜", 14, C_TEXT, true
         );
 
         panel.addView(dateLabel);
 
         btnDate = text(
-                "날짜 선택", 16, 0xFF77717E, false
+                "날짜 선택", 15, C_SUB, false
         );
 
         btnDate.setGravity(Gravity.CENTER_VERTICAL);
@@ -391,12 +467,12 @@ public class PlanetCreateActivity extends AppCompatActivity {
         );
 
         btnDate.setBackground(round(
-                Color.WHITE, 0xFFCBC8D1, 1
+                C_BG, C_LINE, 1, 18
         ));
 
         LinearLayout.LayoutParams dateParams =
                 new LinearLayout.LayoutParams(
-                        -1, dp(58)
+                        -1, dp(54)
                 );
 
         dateParams.topMargin = dp(8);
@@ -407,78 +483,75 @@ public class PlanetCreateActivity extends AppCompatActivity {
         // 선택한 사진 제거
         btnRemove = text(
                 "선택한 사진 삭제",
-                14,
-                0xFFC65B65,
+                13,
+                C_DANGER,
                 false
         );
 
-        btnRemove.setGravity(Gravity.END);
+        btnRemove.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
 
         LinearLayout.LayoutParams removeParams =
                 new LinearLayout.LayoutParams(
                         -1, dp(40)
                 );
 
-        removeParams.topMargin = dp(14);
+        removeParams.topMargin = dp(10);
         panel.addView(btnRemove, removeParams);
 
         btnRemove.setOnClickListener(v -> removeSelected());
 
         // 업로드 진행 상태
         progressText = text(
-                "", 13, 0xFF6B4CD8, true
+                "", 13, C_ACCENT, true
         );
 
         progressText.setGravity(Gravity.CENTER);
         content.addView(progressText);
 
-        // 완료 버튼
+        // 완료 버튼 (연보라 그라데이션 알약 모양)
         btnComplete = text(
                 "완료",
-                21,
+                18,
                 Color.WHITE,
                 true
         );
 
         btnComplete.setGravity(Gravity.CENTER);
-        btnComplete.setBackground(round(
-                0xFF6B4CD8, 0xFF6B4CD8, 0
-        ));
+
+        GradientDrawable doneBg = new GradientDrawable(
+                GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[]{0xFF9C8CF0, 0xFFB79BF2}
+        );
+        doneBg.setCornerRadius(dp(30));
+        btnComplete.setBackground(doneBg);
 
         LinearLayout.LayoutParams doneParams =
                 new LinearLayout.LayoutParams(
-                        -1, dp(65)
+                        -1, dp(58)
                 );
 
         doneParams.setMargins(
-                dp(28), dp(12), dp(28), dp(10)
+                dp(24), dp(10), dp(24), dp(16)
         );
 
         root.addView(btnComplete, doneParams);
 
         btnComplete.setOnClickListener(v -> savePlanet());
 
-        // 하단 태양계 메뉴 아이콘
-        TextView sun = text(
-                "☀",
-                38,
-                0xFFF1B749,
-                true
+        // 배경(우주 느낌) 위에 화면을 올림
+        FrameLayout frame = new FrameLayout(this);
+
+        frame.addView(
+                new SpaceBackdrop(this),
+                new FrameLayout.LayoutParams(-1, -1)
         );
 
-        sun.setGravity(Gravity.CENTER);
-        sun.setBackgroundColor(0xFFF0EFF4);
-
-        root.addView(
-                sun,
-                new LinearLayout.LayoutParams(-1, dp(66))
+        frame.addView(
+                root,
+                new FrameLayout.LayoutParams(-1, -1)
         );
 
-        sun.setOnClickListener(v -> {
-            if (!saving) finish();
-        });
-
-        setContentView(root);
+        setContentView(frame);
     }
 
     // -----------------------------------------
@@ -622,7 +695,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
         btnDate.setText(
                 item == null
                         ? "날짜 선택"
-                        : "▦   " + item.date
+                        : item.date
         );
 
         btnComplete.setAlpha(
@@ -672,6 +745,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
         DatePickerDialog dialog = new DatePickerDialog(
                 this,
+                R.style.StarRing_LightDialog,
                 (view, y, m, d) -> {
 
                     item.date = String.format(
@@ -1232,7 +1306,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
             check.setGravity(Gravity.CENTER);
             check.setBackground(round(
-                    0xFF6B4CD8, 0xFF6B4CD8, 0
+                    C_ACCENT, C_ACCENT, 0, 14
             ));
 
             FrameLayout.LayoutParams checkParams =
@@ -1262,11 +1336,12 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
             holder.itemView.setBackground(
                     round(
-                            0xFFE6E0F6,
+                            C_ACCENT_SOFT,
                             active
-                                    ? 0xFF6B4CD8
-                                    : 0xFFE6E0F6,
-                            active ? 3 : 0
+                                    ? C_ACCENT
+                                    : C_ACCENT_SOFT,
+                            active ? 3 : 0,
+                            14
                     )
             );
 
@@ -1275,7 +1350,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
             );
 
             holder.image.setImageDrawable(null);
-            holder.image.setBackgroundColor(0xFFE6E0F6);
+            holder.image.setBackgroundColor(C_ACCENT_SOFT);
             holder.image.setTag(uri);
 
             // 원본 이미지 전체를 로드하지 않고
@@ -1405,11 +1480,20 @@ public class PlanetCreateActivity extends AppCompatActivity {
             int border,
             int borderWidth) {
 
+        return round(background, border, borderWidth, 16);
+    }
+
+    private GradientDrawable round(
+            int background,
+            int border,
+            int borderWidth,
+            int radiusDp) {
+
         GradientDrawable drawable =
                 new GradientDrawable();
 
         drawable.setColor(background);
-        drawable.setCornerRadius(dp(16));
+        drawable.setCornerRadius(dp(radiusDp));
 
         if (borderWidth > 0) {
             drawable.setStroke(
