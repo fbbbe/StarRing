@@ -75,6 +75,8 @@ public class GalaxyView extends View {
     private static final float BLACKHOLE_X_DP = 0f;
     private static final float BLACKHOLE_Y_DP = -170f;
     private static final float BLACKHOLE_SIZE_DP = 600f;
+    // 블랙홀을 누를 수 있는 반경(dp): 후광을 뺀 실제 모습 기준
+    private static final float BLACKHOLE_TAP_DP = 110f;
 
     private static final int[] CONSTELLATION_RESOURCES = {
             R.drawable.constellation_01,
@@ -839,7 +841,7 @@ public class GalaxyView extends View {
 
         // 이미지가 작아져도 누르기 쉽게 최소 24dp 반경은 보장
         float radius = Math.max(
-                BLACKHOLE_SIZE_DP * density * zoom / 2f,
+                BLACKHOLE_TAP_DP * density * zoom,
                 24f * density);
 
         float dx = upX - cx;
@@ -1228,24 +1230,16 @@ public class GalaxyView extends View {
                     float x = event.getX();
                     float y = event.getY();
 
-                    // 블랙홀 클릭을 우선 처리
-                    if (isTapOnBlackhole(x, y)) {
+                    // 행성을 먼저 확인하고, 행성이 아니면 블랙홀 처리
+                    String planetId = findTappedPlanet(x, y);
+
+                    if (planetId != null && planetClickListener != null) {
+
+                        planetClickListener.onPlanetClick(planetId);
+
+                    } else if (isTapOnBlackhole(x, y)) {
 
                         blackholeClickListener.onBlackholeClick();
-
-                    } else {
-
-                        // 행성 클릭 처리
-                        String planetId =
-                                findTappedPlanet(x, y);
-
-                        if (planetId != null
-                                && planetClickListener != null) {
-
-                            planetClickListener.onPlanetClick(
-                                    planetId
-                            );
-                        }
                     }
 
                     performClick();
