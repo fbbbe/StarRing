@@ -80,8 +80,10 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
     @Override
     public void onBindViewHolder(@NonNull Holder holder, int position, @NonNull List<Object> payloads) {
         if (!payloads.isEmpty()) {
-            // 시간만 갱신
-            bindRemaining(holder.remaining, items.get(position), holder.normalColor);
+            // 시간만 갱신 (마감되는 순간 카드도 바로 어두워지도록 같이 처리)
+            CourtPost current = items.get(position);
+            bindRemaining(holder.remaining, current, holder.normalColor);
+            applyDim(holder, current.isExpired());
             return;
         }
         super.onBindViewHolder(holder, position, payloads);
@@ -96,7 +98,7 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
         holder.percentA.setText("A " + post.percentA() + "%");
         holder.percentB.setText("B " + post.percentB() + "%");
         bindRemaining(holder.remaining, post, holder.normalColor);
-        applyDim(holder, post.isResolved());
+        applyDim(holder, post.isExpired());
 
         holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -113,7 +115,7 @@ public class CourtPostAdapter extends RecyclerView.Adapter<CourtPostAdapter.Hold
         return items.size();
     }
 
-    // 화해 완료된 글: 카드 위에 반투명 검정 (투표 후 A/B 카드와 같은 느낌)
+    // 마감된 글(시간이 지났거나 화해 완료): 카드 위에 반투명 검정 (투표 후 A/B 카드와 같은 느낌)
     private void applyDim(Holder holder, boolean dim) {
         if (dim) {
             GradientDrawable shade = new GradientDrawable();

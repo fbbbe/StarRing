@@ -363,9 +363,23 @@ public final class CourtRepository {
 
         } else {
 
-            Collections.sort(result,
-                    (a, b) -> Long.compare(
-                            a.deadlineAt, b.deadlineAt));
+            // 마감임박순: 아직 진행 중인 글을 마감이 가까운 순으로 먼저,
+            // 이미 마감된 글은 맨 뒤로 (마감된 글끼리는 최근에 마감된 순)
+            Collections.sort(result, (a, b) -> {
+
+                boolean aExpired = a.isExpired();
+                boolean bExpired = b.isExpired();
+
+                if (aExpired != bExpired) {
+                    return aExpired ? 1 : -1;
+                }
+
+                if (aExpired) {
+                    return Long.compare(b.deadlineAt, a.deadlineAt);
+                }
+
+                return Long.compare(a.deadlineAt, b.deadlineAt);
+            });
         }
 
         return result;
