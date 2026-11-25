@@ -161,6 +161,65 @@ service cloud.firestore {
       );
 
       allow delete: if false;
+
+
+      // ==========================================
+      // 은하계 소멸 시 상대방의 연동도 해제
+      // ==========================================
+
+      allow update: if signedIn()
+
+      // 상대방 문서만 대상
+      && request.auth.uid != uid
+
+      // 기존 은하계 연결이 있어야 함
+      && resource.data.galaxyId is string
+
+      // galaxyId만 null로 변경 가능
+      && request.resource.data.galaxyId == null
+
+      && onlyChanges(['galaxyId'])
+
+      // 기존 은하계가 실제로 존재해야 함
+      && exists(
+        galaxyPath(resource.data.galaxyId)
+      )
+
+      // 소멸 전에는 활성 은하계
+      && get(
+        galaxyPath(resource.data.galaxyId)
+      ).data.status == 'active'
+
+      // 해당 은하계에 두 사람이 소속되어 있어야 함
+      && get(
+        galaxyPath(resource.data.galaxyId)
+      ).data.memberUids.size() == 2
+
+      && request.auth.uid in get(
+        galaxyPath(resource.data.galaxyId)
+      ).data.memberUids
+
+      && uid in get(
+        galaxyPath(resource.data.galaxyId)
+      ).data.memberUids
+
+      // 같은 트랜잭션에서 은하계가 해제되어야 함
+      && getAfter(
+        galaxyPath(resource.data.galaxyId)
+      ).data.status == 'unlinked'
+
+      // 구성원 목록은 그대로 유지
+      && getAfter(
+        galaxyPath(resource.data.galaxyId)
+      ).data.memberUids == get(
+        galaxyPath(resource.data.galaxyId)
+      ).data.memberUids
+
+      // 실제 소멸 시각 기록 확인
+      && getAfter(
+        galaxyPath(resource.data.galaxyId)
+      ).data.unlinkedAt == request.time;
+
     }
 
 
@@ -923,8 +982,9 @@ service cloud.firestore {
 
     match /galaxies/{galaxyId}/planets/{planetId} {
 
-      // 같은 은하계의 커플만 행성 조회 가능
       allow get, list: if signedIn()
+      && exists(galaxyPath(galaxyId))
+      && get(galaxyPath(galaxyId)).data.status == 'active'
       && request.auth.uid in
       get(galaxyPath(galaxyId)).data.memberUids;
 

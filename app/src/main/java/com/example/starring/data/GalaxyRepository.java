@@ -13,7 +13,6 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
-import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
@@ -221,68 +220,91 @@ public class GalaxyRepository {
      * 한 트랜잭션 안에서 확인 + 쓰기를 모두 해서 동시 합류를 막는다.
      * (두 명이 동시에 합류하면 한 명의 트랜잭션은 재실행되고, 그때 GALAXY_FULL/INVALID_CODE로 실패)
      */
+
     public Task<String> joinGalaxy(String uid, String normalizedCode) {
-        final DocumentReference codeRef = inviteCodeRef(normalizedCode);
-        final DocumentReference userRef = userRef(uid);
 
-        Task<String> task = db.runTransaction(tx -> {
+        final DocumentReference codeRef =
+                inviteCodeRef(normalizedCode);
+
+        final DocumentReference userRef =
+                userRef(uid);
+
+        return db.runTransaction(tx -> {
+
+            // 1. 초대코드와 본인 정보만 읽기
             DocumentSnapshot invite = tx.get(codeRef);
+            DocumentSnapshot user = tx.get(userRef);
+
             if (!invite.exists()) {
-                throw new CoupleLinkException(Reason.INVALID_CODE);
-            }
-            // 자기 코드 확인을 먼저: 만든 사람은 galaxyId가 이미 있어서 아래 검사에 먼저 걸리기 때문
-            if (uid.equals(invite.getString(FirestoreSchema.CODE_OWNER_UID))) {
-                throw new CoupleLinkException(Reason.OWN_CODE);
-            }
-            String galaxyId = invite.getString(FirestoreSchema.CODE_GALAXY_ID);
-            if (galaxyId == null) {
-                throw new CoupleLinkException(Reason.INVALID_CODE);
+                throw new CoupleLinkException(
+                        Reason.INVALID_CODE
+                );
             }
 
-            DocumentSnapshot user = tx.get(userRef);
-            DocumentReference galaxyRef = galaxyRef(galaxyId);
-            DocumentSnapshot galaxy = tx.get(galaxyRef);
+            if (uid.equals(invite.getString(
+                    FirestoreSchema.CODE_OWNER_UID))) {
+
+                throw new CoupleLinkException(
+                        Reason.OWN_CODE
+                );
+            }
+
+            String galaxyId = invite.getString(
+                    FirestoreSchema.CODE_GALAXY_ID
+            );
+
+            if (galaxyId == null || galaxyId.isEmpty()) {
+                throw new CoupleLinkException(
+                        Reason.INVALID_CODE
+                );
+            }
 
             if (!user.exists()) {
-                throw new CoupleLinkException(Reason.USER_NOT_FOUND);
-            }
-            if (user.getString(FirestoreSchema.USER_GALAXY_ID) != null) {
-                throw new CoupleLinkException(Reason.ALREADY_IN_GALAXY);
-            }
-            if (!galaxy.exists()) {
-                throw new CoupleLinkException(Reason.INVALID_CODE);
+                throw new CoupleLinkException(
+                        Reason.USER_NOT_FOUND
+                );
             }
 
-            List<String> members = memberUids(galaxy);
-            if (members.contains(uid)) {
-                throw new CoupleLinkException(Reason.ALREADY_IN_GALAXY);
-            }
-            if (!GalaxyStatus.WAITING.equals(galaxy.getString(FirestoreSchema.GALAXY_STATUS))
-                    || members.size() >= 2) {
-                throw new CoupleLinkException(Reason.GALAXY_FULL);
+            if (user.getString(
+                    FirestoreSchema.USER_GALAXY_ID) != null) {
+
+                throw new CoupleLinkException(
+                        Reason.ALREADY_IN_GALAXY
+                );
             }
 
-            List<String> newMembers = new ArrayList<>(members);
-            newMembers.add(uid);
+            // 2. 은하계 문서는 직접 읽지 않음
+            // 기존 읽기 권한 오류를 방지
+            DocumentReference galaxyRef =
+                    galaxyRef(galaxyId);
 
-            // 합류 완료 → 코드 무효화 (galaxy.inviteCode = null + 코드 문서 삭제)
-            tx.update(galaxyRef,
-                    FirestoreSchema.GALAXY_MEMBER_UIDS, newMembers,
-                    FirestoreSchema.GALAXY_STATUS, GalaxyStatus.NAMING,
-                    FirestoreSchema.GALAXY_INVITE_CODE, null);
+            // 3. 은하계에 합류
+            // Firestore 규칙이 waiting 상태,
+            // 구성원 수, 초대코드 유효성을 검증
+            tx.update(
+                    galaxyRef,
+                    FirestoreSchema.GALAXY_MEMBER_UIDS,
+                    FieldValue.arrayUnion(uid),
+                    FirestoreSchema.GALAXY_STATUS,
+                    GalaxyStatus.NAMING,
+                    FirestoreSchema.GALAXY_INVITE_CODE,
+                    null
+            );
+
+            // 4. 사용한 초대코드는 무효화
             tx.delete(codeRef);
-            tx.update(userRef, FirestoreSchema.USER_GALAXY_ID, galaxyId);
+
+            // 5. 본인 계정에 새 은하계 연결
+            tx.update(
+                    userRef,
+                    FirestoreSchema.USER_GALAXY_ID,
+                    galaxyId
+            );
+
             return galaxyId;
         });
-
-        // 보안 규칙에서 거부 = 대부분 코드 만료(24시간 초과)
-        return task.continueWithTask(t -> {
-            if (!t.isSuccessful() && isPermissionDenied(t.getException())) {
-                return Tasks.forException(new CoupleLinkException(Reason.CODE_EXPIRED_OR_DENIED));
-            }
-            return t;
-        });
     }
+
 
     // ───────────────────────── 코드 재발급 / 대기 취소 ─────────────────────────
 
@@ -412,6 +434,130 @@ public class GalaxyRepository {
         });
     }
 
+
+    /**
+     * 은하계 소멸:
+     * - Firebase Authentication 계정은 유지
+     * - 두 사용자의 galaxyId를 동시에 null로 변경
+     * - 은하계 상태를 unlinked로 변경
+     *
+     * 주의: 실제 사진/재판 데이터 삭제는 별도 처리
+     */
+    public Task<Void> dissolveGalaxy(String requesterUid) {
+
+        final DocumentReference myRef =
+                userRef(requesterUid);
+
+        return db.runTransaction(transaction -> {
+
+            // 1. 요청자 정보 확인
+            DocumentSnapshot myDoc =
+                    transaction.get(myRef);
+
+            if (!myDoc.exists()) {
+                throw new IllegalStateException(
+                        "사용자 정보를 찾을 수 없습니다."
+                );
+            }
+
+            String galaxyId = myDoc.getString(
+                    FirestoreSchema.USER_GALAXY_ID
+            );
+
+            if (galaxyId == null || galaxyId.isEmpty()) {
+                throw new IllegalStateException(
+                        "연결된 은하계가 없습니다."
+                );
+            }
+
+            // 2. 은하계 정보 확인
+            DocumentReference galaxyRef =
+                    galaxyRef(galaxyId);
+
+            DocumentSnapshot galaxy =
+                    transaction.get(galaxyRef);
+
+            if (!galaxy.exists()
+                    || !GalaxyStatus.ACTIVE.equals(
+                    galaxy.getString(
+                            FirestoreSchema.GALAXY_STATUS
+                    )
+            )) {
+
+                throw new IllegalStateException(
+                        "소멸할 수 있는 활성 은하계가 아닙니다."
+                );
+            }
+
+            List<String> members = memberUids(galaxy);
+
+            if (members.size() != 2
+                    || !members.contains(requesterUid)
+                    || members.get(0).equals(members.get(1))) {
+
+                throw new IllegalStateException(
+                        "커플 연결 정보를 확인할 수 없습니다."
+                );
+            }
+
+            String partnerUid =
+                    members.get(0).equals(requesterUid)
+                            ? members.get(1)
+                            : members.get(0);
+
+            if (partnerUid == null
+                    || partnerUid.isEmpty()) {
+
+                throw new IllegalStateException(
+                        "상대방 계정 정보가 없습니다."
+                );
+            }
+
+            // 3. 상대방도 같은 은하계에 연결돼 있는지 확인
+            DocumentReference partnerRef =
+                    userRef(partnerUid);
+
+            DocumentSnapshot partnerDoc =
+                    transaction.get(partnerRef);
+
+            if (!partnerDoc.exists()
+                    || !galaxyId.equals(
+                    partnerDoc.getString(
+                            FirestoreSchema.USER_GALAXY_ID
+                    )
+            )) {
+
+                throw new IllegalStateException(
+                        "상대방의 은하계 연결 정보가 일치하지 않습니다."
+                );
+            }
+
+            // 4. 모든 읽기가 끝난 뒤 함께 수정
+            transaction.update(
+                    galaxyRef,
+                    FirestoreSchema.GALAXY_STATUS,
+                    GalaxyStatus.UNLINKED,
+                    FirestoreSchema.GALAXY_UNLINKED_AT,
+                    FieldValue.serverTimestamp()
+            );
+
+            transaction.update(
+                    myRef,
+                    FirestoreSchema.USER_GALAXY_ID,
+                    null
+            );
+
+            transaction.update(
+                    partnerRef,
+                    FirestoreSchema.USER_GALAXY_ID,
+                    null
+            );
+
+            return null;
+        });
+    }
+
+
     // ───────────────────────── 공통 ─────────────────────────
 
     private static Map<String, Object> inviteCodeData(String galaxyId, String ownerUid) {
@@ -429,19 +575,6 @@ public class GalaxyRepository {
             return (List<String>) value;
         }
         return new ArrayList<>();
-    }
-
-    private static boolean isPermissionDenied(Exception e) {
-        Throwable t = e;
-        while (t != null) {
-            if (t instanceof FirebaseFirestoreException
-                    && ((FirebaseFirestoreException) t).getCode()
-                    == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
-                return true;
-            }
-            t = t.getCause();
-        }
-        return false;
     }
 
 
@@ -560,4 +693,3 @@ public class GalaxyRepository {
     }
 
 }
-

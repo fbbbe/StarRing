@@ -37,6 +37,11 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 import com.google.firebase.firestore.Query;
 import com.google.firebase.firestore.DocumentSnapshot;
+import com.example.starring.common.Navigator;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.auth.FirebaseUser;
+import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.ListenerRegistration;
 
 
 import java.util.ArrayList;
@@ -81,6 +86,8 @@ public class GalaxyActivity extends Activity {
             "수성", "금성", "지구", "화성",
             "목성", "토성", "천왕성", "해왕성"
     };
+
+    private ListenerRegistration connectionListener;
 
     // 행성 메뉴 PNG
     private static final int[] MENU_IMAGES = {
@@ -873,6 +880,72 @@ public class GalaxyActivity extends Activity {
                 })
                 .show();
     }
+
+
+    private void startConnectionWatcher() {
+
+        if (connectionListener != null) return;
+
+        FirebaseUser user =
+                FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            Navigator.toLogin(this);
+            return;
+        }
+
+        connectionListener = FirebaseFirestore
+                .getInstance()
+                .collection("users")
+                .document(user.getUid())
+                .addSnapshotListener((snapshot, error) -> {
+
+                    if (error != null
+                            || snapshot == null
+                            || !snapshot.exists()) {
+                        return;
+                    }
+
+                    // 아직 서버에 확정되지 않은 변경은 무시
+                    if (snapshot.getMetadata().hasPendingWrites()) {
+                        return;
+                    }
+
+                    String galaxyId =
+                            snapshot.getString("galaxyId");
+
+                    if (galaxyId == null) {
+
+                        stopConnectionWatcher();
+
+                        FirebaseAuth.getInstance().signOut();
+
+                        // 상대방도 로그인 화면으로 이동
+                        Navigator.toLogin(this);
+                    }
+                });
+    }
+
+    private void stopConnectionWatcher() {
+
+        if (connectionListener != null) {
+            connectionListener.remove();
+            connectionListener = null;
+        }
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        startConnectionWatcher();
+    }
+
+    @Override
+    protected void onStop() {
+        stopConnectionWatcher();
+        super.onStop();
+    }
+
 
 
 
