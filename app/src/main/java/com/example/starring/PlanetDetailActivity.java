@@ -24,6 +24,7 @@ import android.widget.Toast;
 import android.text.InputFilter;
 import android.content.Intent;
 
+import androidx.core.widget.NestedScrollView;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -37,7 +38,8 @@ import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
-import java.util.TreeSet;
+import java.util.Collections;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.Calendar;
@@ -86,6 +88,7 @@ public class PlanetDetailActivity extends Activity {
 
     // ----- 갤러리 / 행성 두 화면 -----
     private LinearLayout galleryPage;
+    private NestedScrollView galleryScroll;
     private LinearLayout planetPage;
     private TextView tabGallery;
     private TextView tabPlanet;
@@ -97,9 +100,16 @@ public class PlanetDetailActivity extends Activity {
     private TextView infoSub;
     private TextView infoOpen;
 
-    private final ArrayList<Integer> years = new ArrayList<>();
-    private int planetYear = 0;
-    private int selectedMonth = 0;
+    // 지금 보고 있는 행성과, 은하계의 행성 목록 (달 순서) - ‹ › 이동에 사용
+    private String galaxyId;
+    private String currentPlanetId;
+    private final ArrayList<String> planetIds = new ArrayList<>();
+    private TextView planetPrev;
+    private TextView planetNext;
+
+    // 이 행성이 속한 달 ("2026-11"). 행성 하나 = 한 달
+    private String planetMonthKey = "";
+    private String selectedDate = "";
     private PlanetWorldView.Pin selectedPin;
 
     private final HashMap<String, Bitmap> thumbCache = new HashMap<>();
@@ -141,6 +151,8 @@ public class PlanetDetailActivity extends Activity {
             finish();
             return;
         }
+
+        currentPlanetId = planetId;
 
         loadPlanetReference(planetId);
     }
@@ -244,8 +256,16 @@ public class PlanetDetailActivity extends Activity {
         galleryPage = new LinearLayout(this);
         galleryPage.setOrientation(LinearLayout.VERTICAL);
 
-        root.addView(
+        // 위의 탭(행성/갤러리)만 고정하고, 나머지는 함께 스크롤
+        galleryScroll = new NestedScrollView(this);
+
+        galleryScroll.addView(
                 galleryPage,
+                new FrameLayout.LayoutParams(-1, -2)
+        );
+
+        root.addView(
+                galleryScroll,
                 new LinearLayout.LayoutParams(-1, 0, 1f)
         );
 
@@ -361,8 +381,7 @@ public class PlanetDetailActivity extends Activity {
                 return;
             }
 
-            String planetId = getIntent()
-                    .getStringExtra(EXTRA_PLANET_ID);
+            String planetId = currentPlanetId;
 
             if (planetId == null || planetId.isEmpty()) {
                 message("행성 정보를 찾을 수 없습니다.");
@@ -378,6 +397,12 @@ public class PlanetDetailActivity extends Activity {
             intent.putExtra(
                     PlanetCreateActivity.EXTRA_PLANET_ID,
                     planetId
+            );
+
+            // 이 행성의 달 안에서만 날짜를 고르도록 전달
+            intent.putExtra(
+                    PlanetCreateActivity.EXTRA_MONTH_KEY,
+                    planetMonthKey
             );
 
             startActivity(intent);
@@ -406,9 +431,25 @@ public class PlanetDetailActivity extends Activity {
         // 사진 그리드
         photoGrid = new RecyclerView(this);
 
-        photoGrid.setLayoutManager(
-                new GridLayoutManager(this, 3)
+        GridLayoutManager gridManager =
+                new GridLayoutManager(this, 3);
+
+        // 날짜 구분선(헤더)은 한 줄 전체를 차지
+        gridManager.setSpanSizeLookup(
+                new GridLayoutManager.SpanSizeLookup() {
+
+                    @Override
+                    public int getSpanSize(int position) {
+
+                        return adapter != null
+                                && adapter.isHeader(position)
+                                ? 3
+                                : 1;
+                    }
+                }
         );
+
+        photoGrid.setLayoutManager(gridManager);
 
         photoGrid.setPadding(
                 dp(12), dp(4),
@@ -420,10 +461,13 @@ public class PlanetDetailActivity extends Activity {
         adapter = new PhotoAdapter();
         photoGrid.setAdapter(adapter);
 
+        // 스크롤은 바깥(galleryScroll)이 담당
+        photoGrid.setNestedScrollingEnabled(false);
+
         galleryPage.addView(
                 photoGrid,
                 new LinearLayout.LayoutParams(
-                        -1, 0, 1f
+                        -1, -2
                 )
         );
 
@@ -437,41 +481,41 @@ public class PlanetDetailActivity extends Activity {
                 new LinearLayout.LayoutParams(-1, 0, 1f)
         );
 
-        // 연도 이동:  ‹  2026년  ›
-        LinearLayout yearBar = new LinearLayout(this);
-        yearBar.setGravity(Gravity.CENTER);
+        // 달 이동:  ‹  2026년 11월  ›  (달마다 있는 행성끼리 이동)
+        LinearLayout monthBar = new LinearLayout(this);
+        monthBar.setGravity(Gravity.CENTER);
 
-        TextView yearPrev = makeText("‹", 26, C_ACCENT, true);
-        TextView yearNext = makeText("›", 26, C_ACCENT, true);
+        planetPrev = makeText("‹", 26, C_ACCENT, true);
+        planetNext = makeText("›", 26, C_ACCENT, true);
 
-        yearPrev.setGravity(Gravity.CENTER);
-        yearNext.setGravity(Gravity.CENTER);
+        planetPrev.setGravity(Gravity.CENTER);
+        planetNext.setGravity(Gravity.CENTER);
 
-        textYear = makeText("", 16, C_TEXT, true);
+        textYear = makeText("", 18, C_TEXT, true);
         textYear.setGravity(Gravity.CENTER);
 
-        yearBar.addView(
-                yearPrev,
-                new LinearLayout.LayoutParams(dp(52), dp(40))
+        monthBar.addView(
+                planetPrev,
+                new LinearLayout.LayoutParams(dp(56), dp(44))
         );
 
-        yearBar.addView(
+        monthBar.addView(
                 textYear,
-                new LinearLayout.LayoutParams(dp(96), dp(40))
+                new LinearLayout.LayoutParams(dp(150), dp(44))
         );
 
-        yearBar.addView(
-                yearNext,
-                new LinearLayout.LayoutParams(dp(52), dp(40))
+        monthBar.addView(
+                planetNext,
+                new LinearLayout.LayoutParams(dp(56), dp(44))
         );
 
         planetPage.addView(
-                yearBar,
+                monthBar,
                 new LinearLayout.LayoutParams(-1, -2)
         );
 
-        yearPrev.setOnClickListener(v -> moveYear(-1));
-        yearNext.setOnClickListener(v -> moveYear(1));
+        planetPrev.setOnClickListener(v -> movePlanet(-1));
+        planetNext.setOnClickListener(v -> movePlanet(1));
 
         planetView = new PlanetWorldView(this);
 
@@ -507,7 +551,7 @@ public class PlanetDetailActivity extends Activity {
 
         infoTitle = makeText("핀을 눌러보세요", 15, C_TEXT, true);
         infoSub = makeText(
-                "달마다 모은 추억이 핀으로 꽂혀 있어요.",
+                "날짜마다 모은 추억이 핀으로 꽂혀 있어요.",
                 12, C_SUB, false
         );
 
@@ -562,7 +606,7 @@ public class PlanetDetailActivity extends Activity {
 
     private void showPage(boolean planet) {
 
-        galleryPage.setVisibility(planet ? View.GONE : View.VISIBLE);
+        galleryScroll.setVisibility(planet ? View.GONE : View.VISIBLE);
         planetPage.setVisibility(planet ? View.VISIBLE : View.GONE);
 
         styleTab(tabGallery, !planet);
@@ -591,78 +635,53 @@ public class PlanetDetailActivity extends Activity {
     // 행성 화면: 월별 핀
     // ==========================================
 
-    /** 사진 날짜(yyyy-MM-dd)에서 연도를 읽음. 형식이 다르면 0 */
-    private int yearOf(String date) {
-
-        if (date == null || date.length() < 7) return 0;
-
-        try {
-            return Integer.parseInt(date.substring(0, 4));
-        } catch (Exception e) {
-            return 0;
-        }
+    /** 사진 날짜가 yyyy-MM-dd 형식인지 */
+    private boolean validDate(String date) {
+        return date != null && date.matches("\\d{4}-\\d{2}-\\d{2}");
     }
 
     private void refreshPlanetPage() {
 
         if (planetView == null) return;
 
-        // 사진이 있는 연도 목록
-        TreeSet<Integer> set = new TreeSet<>();
+        textYear.setText(PlanetMonth.label(planetMonthKey));
 
-        for (PhotoItem item : photos) {
+        // 날짜별로 사진을 모음 (날짜 순서대로)
+        TreeMap<String, ArrayList<Integer>> byDate = new TreeMap<>();
 
-            int year = yearOf(item.date);
+        for (int i = 0; i < photos.size(); i++) {
 
-            if (year > 0) set.add(year);
+            String date = photos.get(i).date;
+
+            if (!validDate(date)) continue;
+
+            ArrayList<Integer> list = byDate.get(date);
+
+            if (list == null) {
+                list = new ArrayList<>();
+                byDate.put(date, list);
+            }
+
+            list.add(i);
         }
 
-        if (set.isEmpty()) {
-            set.add(Calendar.getInstance().get(Calendar.YEAR));
-        }
-
-        years.clear();
-        years.addAll(set);
-
-        if (!years.contains(planetYear)) {
-            planetYear = years.get(years.size() - 1);
-        }
-
-        textYear.setText(planetYear + "년");
-
-        // 그 해의 달마다 핀 하나 (대표 사진은 가장 이른 날짜)
         ArrayList<PlanetWorldView.Pin> pins = new ArrayList<>();
         PlanetWorldView.Pin keep = null;
 
-        for (int month = 1; month <= 12; month++) {
+        for (String date : byDate.keySet()) {
 
-            String prefix = String.format(
-                    Locale.US, "%04d-%02d", planetYear, month
-            );
+            ArrayList<Integer> list = byDate.get(date);
 
-            int count = 0;
-            int first = -1;
-
-            for (int i = 0; i < photos.size(); i++) {
-
-                String date = photos.get(i).date;
-
-                if (date == null || !date.startsWith(prefix)) continue;
-
-                count++;
-
-                if (first < 0
-                        || date.compareTo(photos.get(first).date) < 0) {
-                    first = i;
-                }
-            }
-
-            if (count == 0) continue;
-
+            int first = list.get(0);
             PhotoItem rep = photos.get(first);
 
             PlanetWorldView.Pin pin = new PlanetWorldView.Pin(
-                    month, count, first, rep.url
+                    date,
+                    Integer.parseInt(date.substring(5, 7)),
+                    Integer.parseInt(date.substring(8, 10)),
+                    list.size(),
+                    first,
+                    rep.url
             );
 
             Bitmap cached = thumbCache.get(rep.url);
@@ -673,7 +692,7 @@ public class PlanetDetailActivity extends Activity {
                 loadThumb(pin);
             }
 
-            if (month == selectedMonth) keep = pin;
+            if (date.equals(selectedDate)) keep = pin;
 
             pins.add(pin);
         }
@@ -682,9 +701,9 @@ public class PlanetDetailActivity extends Activity {
 
         selectedPin = keep;
 
-        if (keep == null) selectedMonth = 0;
+        if (keep == null) selectedDate = "";
 
-        planetView.setSelectedMonth(selectedMonth);
+        planetView.setSelectedDate(selectedDate);
         bindInfo();
     }
 
@@ -718,24 +737,12 @@ public class PlanetDetailActivity extends Activity {
         });
     }
 
-    private void moveYear(int step) {
-
-        int index = years.indexOf(planetYear) + step;
-
-        if (index < 0 || index >= years.size()) return;
-
-        planetYear = years.get(index);
-        selectedMonth = 0;
-
-        refreshPlanetPage();
-    }
-
     private void onPinClicked(PlanetWorldView.Pin pin) {
 
         selectedPin = pin;
-        selectedMonth = pin.month;
+        selectedDate = pin.date;
 
-        planetView.setSelectedMonth(selectedMonth);
+        planetView.setSelectedDate(selectedDate);
         bindInfo();
     }
 
@@ -754,8 +761,8 @@ public class PlanetDetailActivity extends Activity {
 
             infoSub.setText(
                     empty
-                            ? "사진을 추가하면 달마다 핀이 꽂혀요."
-                            : "달마다 모은 추억이 핀으로 꽂혀 있어요."
+                            ? "사진을 추가하면 날짜마다 핀이 꽂혀요."
+                            : "날짜마다 모은 추억이 핀으로 꽂혀 있어요."
             );
 
             return;
@@ -764,13 +771,13 @@ public class PlanetDetailActivity extends Activity {
         PhotoItem rep = photos.get(selectedPin.photoIndex);
 
         infoTitle.setText(
-                planetYear + "년 " + selectedPin.month + "월 · 사진 "
+                selectedPin.month + "월 " + selectedPin.day + "일 · 사진 "
                         + selectedPin.count + "장"
         );
 
         infoSub.setText(
                 rep.caption.isEmpty()
-                        ? "탭해서 이 달의 사진을 볼 수 있어요."
+                        ? "탭해서 이 날의 사진을 볼 수 있어요."
                         : rep.caption
         );
 
@@ -793,7 +800,9 @@ public class PlanetDetailActivity extends Activity {
 
         if (photoIndex >= 0 && photoIndex < photos.size()) {
             selectPhoto(photoIndex);
-            photoGrid.scrollToPosition(photoIndex);
+
+            // 위쪽 미리보기에 고른 사진이 보이도록 맨 위로
+            galleryScroll.post(() -> galleryScroll.scrollTo(0, 0));
         }
     }
 
@@ -826,12 +835,15 @@ public class PlanetDetailActivity extends Activity {
                         return;
                     }
 
+                    this.galaxyId = galaxyId;
+
                     planetRef = db.collection("galaxies")
                             .document(galaxyId)
                             .collection("planets")
                             .document(planetId);
 
                     startPlanetListener();
+                    loadPlanetList();
                 })
                 .addOnFailureListener(this, error -> {
 
@@ -845,6 +857,102 @@ public class PlanetDetailActivity extends Activity {
     // ==========================================
     // 행성 사진 실시간 조회
     // ==========================================
+
+    // ==========================================
+    // 달마다 있는 행성끼리 ‹ › 이동
+    // ==========================================
+
+    private void loadPlanetList() {
+
+        if (galaxyId == null) return;
+
+        db.collection("galaxies")
+                .document(galaxyId)
+                .collection("planets")
+                .get()
+                .addOnSuccessListener(this, snapshot -> {
+
+                    ArrayList<String[]> list = new ArrayList<>();
+
+                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
+
+                        String key = PlanetMonth.of(doc);
+
+                        list.add(new String[]{
+                                key == null ? "" : key,
+                                doc.getId()
+                        });
+                    }
+
+                    // 달 순서 (같은 달이면 ID 순)
+                    Collections.sort(list, (a, b) -> {
+
+                        int c = a[0].compareTo(b[0]);
+
+                        return c != 0 ? c : a[1].compareTo(b[1]);
+                    });
+
+                    planetIds.clear();
+
+                    for (String[] item : list) {
+                        planetIds.add(item[1]);
+                    }
+
+                    updatePlanetArrows();
+                });
+    }
+
+    private void updatePlanetArrows() {
+
+        if (planetPrev == null) return;
+
+        int index = planetIds.indexOf(currentPlanetId);
+
+        planetPrev.setAlpha(index > 0 ? 1f : 0.3f);
+
+        planetNext.setAlpha(
+                index >= 0 && index < planetIds.size() - 1 ? 1f : 0.3f
+        );
+    }
+
+    private void movePlanet(int step) {
+
+        int index = planetIds.indexOf(currentPlanetId);
+
+        if (index < 0) return;
+
+        int target = index + step;
+
+        if (target < 0 || target >= planetIds.size()) return;
+
+        switchPlanet(planetIds.get(target));
+    }
+
+    private void switchPlanet(String planetId) {
+
+        if (planetListener != null) {
+            planetListener.remove();
+            planetListener = null;
+        }
+
+        currentPlanetId = planetId;
+
+        photos.clear();
+        selectedIndex = -1;
+        selectedDate = "";
+        selectedPin = null;
+
+        adapter.reload();
+        planetView.setPins(new ArrayList<>());
+
+        planetRef = db.collection("galaxies")
+                .document(galaxyId)
+                .collection("planets")
+                .document(planetId);
+
+        updatePlanetArrows();
+        startPlanetListener();
+    }
 
     private void startPlanetListener() {
 
@@ -886,6 +994,18 @@ public class PlanetDetailActivity extends Activity {
             previousPublicId =
                     photos.get(selectedIndex).publicId;
         }
+
+        // 이 행성이 속한 달 (문서 ID 가 달 이름이면 그것, 예전 행성은 만든 달)
+        String month = PlanetMonth.of(snapshot);
+
+        if (month == null) {
+            month = PlanetMonth.key(
+                    Calendar.getInstance().get(Calendar.YEAR),
+                    Calendar.getInstance().get(Calendar.MONTH) + 1
+            );
+        }
+
+        planetMonthKey = month;
 
         photos.clear();
 
@@ -935,7 +1055,7 @@ public class PlanetDetailActivity extends Activity {
             }
         }
 
-        adapter.notifyDataSetChanged();
+        adapter.reload();
         renderSelectedPhoto();
         refreshPlanetPage();
     }
@@ -964,10 +1084,10 @@ public class PlanetDetailActivity extends Activity {
         selectedIndex = index;
 
         if (previous >= 0) {
-            adapter.notifyItemChanged(previous);
+            adapter.notifyItemChanged(adapter.rowOfPhoto(previous));
         }
 
-        adapter.notifyItemChanged(index);
+        adapter.notifyItemChanged(adapter.rowOfPhoto(index));
 
         renderSelectedPhoto();
     }
@@ -1153,9 +1273,39 @@ public class PlanetDetailActivity extends Activity {
                             calendar.get(Calendar.DAY_OF_MONTH)
                     );
 
-            picker.getDatePicker().setMaxDate(
-                    System.currentTimeMillis()
-            );
+            // 이 행성의 달 안에서만 선택 (미래 날짜는 제외)
+            if (PlanetMonth.isMonthKey(planetMonthKey)) {
+
+                int py = Integer.parseInt(
+                        planetMonthKey.substring(0, 4));
+                int pm = Integer.parseInt(
+                        planetMonthKey.substring(5, 7)) - 1;
+
+                Calendar first = Calendar.getInstance();
+                first.clear();
+                first.set(py, pm, 1, 0, 0, 0);
+
+                Calendar last = Calendar.getInstance();
+                last.clear();
+                last.set(py, pm, 1, 23, 59, 59);
+                last.set(
+                        Calendar.DAY_OF_MONTH,
+                        last.getActualMaximum(Calendar.DAY_OF_MONTH)
+                );
+
+                picker.getDatePicker().setMinDate(
+                        first.getTimeInMillis());
+
+                picker.getDatePicker().setMaxDate(Math.min(
+                        last.getTimeInMillis(),
+                        System.currentTimeMillis()));
+
+            } else {
+
+                picker.getDatePicker().setMaxDate(
+                        System.currentTimeMillis()
+                );
+            }
 
             picker.show();
         });
@@ -1345,13 +1495,135 @@ public class PlanetDetailActivity extends Activity {
     // 사진 그리드
     // ==========================================
 
+    /** 그리드의 한 줄: 날짜 구분선 또는 사진 한 장 */
+    private static class Row {
+
+        final boolean header;
+        final int photoIndex;   // 사진일 때 photos 목록의 번호
+        final String label;     // 헤더일 때 "24일"
+
+        Row(boolean header, int photoIndex, String label) {
+            this.header = header;
+            this.photoIndex = photoIndex;
+            this.label = label;
+        }
+    }
+
+    // 날짜 그룹 순서: true = 최근 날짜가 위, false = 오래된 날짜가 위
+    private static final boolean NEWEST_FIRST = true;
+
     private class PhotoAdapter
             extends RecyclerView.Adapter<PhotoHolder> {
+
+        private static final int TYPE_PHOTO = 0;
+        private static final int TYPE_HEADER = 1;
+
+        private final ArrayList<Row> rows = new ArrayList<>();
+
+        /** 사진 목록을 날짜별로 묶어 구분선과 함께 다시 만듦 */
+        void reload() {
+
+            rows.clear();
+
+            ArrayList<Integer> order = new ArrayList<>();
+
+            for (int i = 0; i < photos.size(); i++) {
+                order.add(i);
+            }
+
+            // 날짜순 정렬 (같은 날짜는 올린 순서 유지)
+            Collections.sort(order, (x, y) -> {
+
+                String dx = validDate(photos.get(x).date)
+                        ? photos.get(x).date : "";
+
+                String dy = validDate(photos.get(y).date)
+                        ? photos.get(y).date : "";
+
+                // 날짜 없는 사진은 항상 맨 아래
+                if (dx.isEmpty() != dy.isEmpty()) {
+                    return dx.isEmpty() ? 1 : -1;
+                }
+
+                int c = dx.compareTo(dy);
+
+                return NEWEST_FIRST ? -c : c;
+            });
+
+            String lastKey = null;
+
+            for (int index : order) {
+
+                String date = photos.get(index).date;
+
+                String key = validDate(date) ? date : "";
+
+                if (lastKey == null || !lastKey.equals(key)) {
+
+                    rows.add(new Row(true, -1, headerLabel(key)));
+                    lastKey = key;
+                }
+
+                rows.add(new Row(false, index, ""));
+            }
+
+            notifyDataSetChanged();
+        }
+
+        boolean isHeader(int position) {
+
+            return position >= 0
+                    && position < rows.size()
+                    && rows.get(position).header;
+        }
+
+        /** photos 의 번호 -> 그리드에서의 위치 */
+        int rowOfPhoto(int photoIndex) {
+
+            for (int i = 0; i < rows.size(); i++) {
+
+                Row row = rows.get(i);
+
+                if (!row.header && row.photoIndex == photoIndex) {
+                    return i;
+                }
+            }
+
+            return RecyclerView.NO_POSITION;
+        }
+
+        private String headerLabel(String date) {
+
+            if (date.isEmpty()) {
+                return "날짜 없음";
+            }
+
+            int month = Integer.parseInt(date.substring(5, 7));
+            int day = Integer.parseInt(date.substring(8, 10));
+
+            // 이 행성의 달이면 "24일", 다른 달이면 "9월 24일"
+            if (date.startsWith(planetMonthKey)) {
+                return day + "일";
+            }
+
+            return month + "월 " + day + "일";
+        }
+
+        @Override
+        public int getItemViewType(int position) {
+            return rows.get(position).header
+                    ? TYPE_HEADER
+                    : TYPE_PHOTO;
+        }
 
         @Override
         public PhotoHolder onCreateViewHolder(
                 ViewGroup parent,
                 int viewType) {
+
+            if (viewType == TYPE_HEADER) {
+                return createHeaderHolder();
+            }
 
             FrameLayout tile =
                     new FrameLayout(
@@ -1392,7 +1664,44 @@ public class PlanetDetailActivity extends Activity {
 
             tile.addView(image, imageParams);
 
-            return new PhotoHolder(tile, image);
+            return new PhotoHolder(tile, image, null);
+        }
+
+        /** "24일 ────────" 모양의 날짜 구분선 */
+        private PhotoHolder createHeaderHolder() {
+
+            LinearLayout bar =
+                    new LinearLayout(PlanetDetailActivity.this);
+
+            bar.setOrientation(LinearLayout.HORIZONTAL);
+            bar.setGravity(Gravity.CENTER_VERTICAL);
+
+            RecyclerView.LayoutParams params =
+                    new RecyclerView.LayoutParams(-1, -2);
+
+            params.setMargins(dp(6), dp(14), dp(6), dp(6));
+
+            bar.setLayoutParams(params);
+
+            TextView label =
+                    makeText("", 14, C_ACCENT, true);
+
+            bar.addView(
+                    label,
+                    new LinearLayout.LayoutParams(-2, -2)
+            );
+
+            View line = new View(PlanetDetailActivity.this);
+            line.setBackgroundColor(C_LINE);
+
+            LinearLayout.LayoutParams lineParams =
+                    new LinearLayout.LayoutParams(0, dp(1), 1f);
+
+            lineParams.leftMargin = dp(10);
+
+            bar.addView(line, lineParams);
+
+            return new PhotoHolder(bar, null, label);
         }
 
         @Override
@@ -1400,10 +1709,17 @@ public class PlanetDetailActivity extends Activity {
                 PhotoHolder holder,
                 int position) {
 
-            PhotoItem item = photos.get(position);
+            Row row = rows.get(position);
+
+            if (row.header) {
+                holder.label.setText(row.label);
+                return;
+            }
+
+            PhotoItem item = photos.get(row.photoIndex);
 
             boolean selected =
-                    position == selectedIndex;
+                    row.photoIndex == selectedIndex;
 
             holder.itemView.setBackground(
                     rounded(
@@ -1421,32 +1737,41 @@ public class PlanetDetailActivity extends Activity {
 
             holder.itemView.setOnClickListener(v -> {
 
-                int index =
-                        holder.getBindingAdapterPosition();
+                int pos = holder.getBindingAdapterPosition();
 
-                if (index != RecyclerView.NO_POSITION) {
-                    selectPhoto(index);
+                if (pos == RecyclerView.NO_POSITION
+                        || pos >= rows.size()
+                        || rows.get(pos).header) {
+                    return;
                 }
+
+                selectPhoto(rows.get(pos).photoIndex);
+
+                // 고른 사진이 위 미리보기에 보이도록 맨 위로
+                galleryScroll.smoothScrollTo(0, 0);
             });
         }
 
         @Override
         public int getItemCount() {
-            return photos.size();
+            return rows.size();
         }
     }
 
     private static class PhotoHolder
             extends RecyclerView.ViewHolder {
 
-        final ImageView image;
+        final ImageView image;   // 사진 줄일 때
+        final TextView label;    // 날짜 구분선일 때
 
         PhotoHolder(
                 View itemView,
-                ImageView image) {
+                ImageView image,
+                TextView label) {
 
             super(itemView);
             this.image = image;
+            this.label = label;
         }
     }
 
@@ -1521,6 +1846,9 @@ public class PlanetDetailActivity extends Activity {
     protected void onStart() {
         super.onStart();
         startPlanetListener();
+
+        // 다른 화면에서 행성이 새로 생겼을 수 있으니 목록 갱신
+        loadPlanetList();
     }
 
     @Override

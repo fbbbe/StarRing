@@ -50,6 +50,10 @@ public class GalaxyView extends View {
             Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG
     );
 
+    // 행성이 둥둥 떠 있는 정도: 위아래 폭(dp), 한 번 오르내리는 시간(ms)
+    private static final float PLANET_FLOAT_DP = 3f;
+    private static final float PLANET_FLOAT_MS = 4500f;
+
     private final RectF drawRect = new RectF();
     private final float density;
 
@@ -712,6 +716,10 @@ public class GalaxyView extends View {
         drawBodies(canvas, visibleSpecialBodies);
         drawBodies(canvas, visiblePlanets);
         drawBlackhole(canvas);   // na가 추가
+        // 행성이 떠다니도록 계속 다시 그림 (행성이 있을 때만)
+        if (!visiblePlanets.isEmpty()) {
+            postInvalidateDelayed(33L);
+        }
     }
 
     // 우주 재판장 연동: 진행 중인 내 블랙홀이 있으면 표시 - na가 추가
@@ -807,6 +815,8 @@ public class GalaxyView extends View {
             float y = centerY + offsetY
                     + star.y * density * zoom;
 
+
+
             // 애기별과 큰 별은 크기 고정
             float size = star.size * density;
             float half = size / 2f;
@@ -857,6 +867,12 @@ public class GalaxyView extends View {
 
             float y = centerY + offsetY
                     + body.y * density * zoom;
+
+            if (body.type == PLANET) {
+                y += (float) Math.sin(2.0 * Math.PI
+                        * (android.os.SystemClock.uptimeMillis() / PLANET_FLOAT_MS
+                        + body.id * 0.37)) * PLANET_FLOAT_DP * density * zoom;
+            }
 
             // 별자리·초신성·백색왜성·행성은
             // 위치와 크기 모두 줌 적용
@@ -956,6 +972,7 @@ public class GalaxyView extends View {
     private Bitmap getBodyBitmap(Body body) {
 
         if (body.type == CONSTELLATION) {
+            // id = 월(1~12)
             return constellationBitmaps[body.id - 1];
         }
 
@@ -968,9 +985,27 @@ public class GalaxyView extends View {
         }
 
         if (body.type == PLANET) {
-            return planetBitmaps[
-                    (body.id - 1) % planetBitmaps.length
-                    ];
+
+            int slot = body.id - 1;
+            int index = slot % planetBitmaps.length;
+
+            // 행성 문서의 planetAsset("planet_03")대로 모양을 고름
+            if (slot >= 0 && slot < planetAssets.size()) {
+
+                String asset = planetAssets.get(slot);
+
+                if (asset != null && asset.startsWith("planet_")) {
+                    try {
+                        int n = Integer.parseInt(asset.substring(7));
+                        if (n >= 1 && n <= planetBitmaps.length) {
+                            index = n - 1;
+                        }
+                    } catch (NumberFormatException ignored) {
+                    }
+                }
+            }
+
+            return planetBitmaps[index];
         }
 
         return null;

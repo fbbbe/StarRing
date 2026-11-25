@@ -46,6 +46,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
 import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.QuerySnapshot;
 import com.google.firebase.firestore.Source;
 
 import org.json.JSONObject;
@@ -155,10 +156,22 @@ public class PlanetCreateActivity extends AppCompatActivity {
         }
     }
 
+    // 기존 행성에 사진을 추가할 때, 그 행성의 달("2026-11")
+    public static final String EXTRA_MONTH_KEY =
+            "com.example.starring.EXTRA_MONTH_KEY";
+
     public static final String EXTRA_PLANET_ID =
             "target_planet_id";
 
     private String existingPlanetId;
+
+    // 새 행성을 만들 달 (행성 하나 = 한 달). 기본은 이번 달
+    private static final int MAX_MONTHS_BACK = 24;
+    private int monthYear;
+    private int monthMonth;
+    private TextView monthLabel;
+    private TextView monthPrev;
+    private TextView monthNext;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -169,6 +182,20 @@ public class PlanetCreateActivity extends AppCompatActivity {
                 .getStringExtra(EXTRA_PLANET_ID);
 
         SpaceBackdrop.applyLightWindow(this);
+
+        Calendar now = Calendar.getInstance();
+        monthYear = now.get(Calendar.YEAR);
+        monthMonth = now.get(Calendar.MONTH) + 1;
+
+        // 기존 행성에 추가하면 그 행성의 달 안에서만 날짜를 고를 수 있음
+        String extraMonth = getIntent().getStringExtra(EXTRA_MONTH_KEY);
+
+        if (existingPlanetId != null
+                && PlanetMonth.isMonthKey(extraMonth)) {
+
+            monthYear = Integer.parseInt(extraMonth.substring(0, 4));
+            monthMonth = Integer.parseInt(extraMonth.substring(5, 7));
+        }
 
         createScreen();
         refreshSelection();
@@ -270,6 +297,49 @@ public class PlanetCreateActivity extends AppCompatActivity {
         panel.setBackground(round(
                 C_CARD, C_LINE, 1, 24
         ));
+
+        // 행성을 만들 달 선택:  ‹  2026년 11월 행성  ›
+        // (기존 행성에 사진을 추가할 때는 달이 정해져 있어서 숨김)
+        if (existingPlanetId == null) {
+
+            LinearLayout monthRow = new LinearLayout(this);
+            monthRow.setGravity(Gravity.CENTER);
+
+            monthPrev = text("‹", 26, C_ACCENT, true);
+            monthNext = text("›", 26, C_ACCENT, true);
+            monthLabel = text("", 16, C_TEXT, true);
+
+            monthPrev.setGravity(Gravity.CENTER);
+            monthNext.setGravity(Gravity.CENTER);
+            monthLabel.setGravity(Gravity.CENTER);
+
+            monthRow.addView(
+                    monthPrev,
+                    new LinearLayout.LayoutParams(dp(52), dp(44))
+            );
+
+            monthRow.addView(
+                    monthLabel,
+                    new LinearLayout.LayoutParams(dp(170), dp(44))
+            );
+
+            monthRow.addView(
+                    monthNext,
+                    new LinearLayout.LayoutParams(dp(52), dp(44))
+            );
+
+            LinearLayout.LayoutParams monthParams =
+                    new LinearLayout.LayoutParams(-1, -2);
+
+            monthParams.bottomMargin = dp(8);
+
+            content.addView(monthRow, monthParams);
+
+            monthPrev.setOnClickListener(v -> moveMonth(-1));
+            monthNext.setOnClickListener(v -> moveMonth(1));
+
+            refreshMonthRow();
+        }
 
         content.addView(panel);
 
@@ -614,7 +684,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
                 // 선택기 종류에 따라 지원하지 않을 수 있음
             }
 
-            photos.add(new PhotoDraft(uri, todayString()));
+            photos.add(new PhotoDraft(uri, defaultPhotoDate()));
             added++;
         }
 
@@ -631,8 +701,6 @@ public class PlanetCreateActivity extends AppCompatActivity {
                     "중복 사진 또는 100장 제한으로 "
                             + skipped + "장을 제외했습니다."
             );
-        } else if (added > 0) {
-            message(added + "장을 추가했습니다.");
         }
     }
 
@@ -761,12 +829,113 @@ public class PlanetCreateActivity extends AppCompatActivity {
                 day
         );
 
-        // 미래 날짜 선택 방지
-        dialog.getDatePicker().setMaxDate(
+        // 행성의 달 안에서만 선택 (미래 날짜는 제외)
+        Calendar first = Calendar.getInstance();
+        first.clear();
+        first.set(monthYear, monthMonth - 1, 1, 0, 0, 0);
+
+        Calendar last = Calendar.getInstance();
+        last.clear();
+        last.set(monthYear, monthMonth - 1, 1, 23, 59, 59);
+        last.set(
+                Calendar.DAY_OF_MONTH,
+                last.getActualMaximum(Calendar.DAY_OF_MONTH)
+        );
+
+        long maxMillis = Math.min(
+                last.getTimeInMillis(),
                 System.currentTimeMillis()
         );
 
+        dialog.getDatePicker().setMinDate(first.getTimeInMillis());
+        dialog.getDatePicker().setMaxDate(maxMillis);
+
         dialog.show();
+    }
+
+    // -----------------------------------------
+    // 행성을 만들 달 선택
+    // -----------------------------------------
+
+    private int monthIndex(int year, int month) {
+        return year * 12 + (month - 1);
+    }
+
+    private void moveMonth(int step) {
+
+        if (saving) return;
+
+        Calendar now = Calendar.getInstance();
+
+        int current = monthIndex(
+                now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1
+        );
+
+        int next = monthIndex(monthYear, monthMonth) + step;
+
+        // 이번 달보다 미래는 불가, 너무 먼 과거도 제한
+        if (next > current || next < current - (MAX_MONTHS_BACK - 1)) {
+            return;
+        }
+
+        monthYear = next / 12;
+        monthMonth = next % 12 + 1;
+
+        refreshMonthRow();
+        clampPhotoDates();
+    }
+
+    /** 달을 바꾸면 이미 고른 사진의 날짜도 그 달 안으로 맞춤 */
+    private void clampPhotoDates() {
+
+        String prefix = PlanetMonth.key(monthYear, monthMonth);
+
+        for (PhotoDraft item : photos) {
+
+            if (item.date == null || !item.date.startsWith(prefix)) {
+                item.date = defaultPhotoDate();
+            }
+        }
+
+        refreshSelection();
+    }
+
+    private void refreshMonthRow() {
+
+        if (monthLabel == null) return;
+
+        Calendar now = Calendar.getInstance();
+
+        int current = monthIndex(
+                now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1
+        );
+
+        int selected = monthIndex(monthYear, monthMonth);
+
+        monthLabel.setText(
+                PlanetMonth.label(PlanetMonth.key(monthYear, monthMonth))
+                        + " 행성"
+        );
+
+        monthPrev.setAlpha(
+                selected <= current - (MAX_MONTHS_BACK - 1) ? 0.3f : 1f
+        );
+
+        monthNext.setAlpha(selected >= current ? 0.3f : 1f);
+    }
+
+    /** 새로 고른 사진의 기본 날짜: 이번 달이면 오늘, 지난 달이면 그 달 1일 */
+    private String defaultPhotoDate() {
+
+        Calendar now = Calendar.getInstance();
+
+        boolean currentMonth =
+                monthYear == now.get(Calendar.YEAR)
+                        && monthMonth == now.get(Calendar.MONTH) + 1;
+
+        return currentMonth
+                ? todayString()
+                : PlanetMonth.key(monthYear, monthMonth) + "-01";
     }
 
     private String todayString() {
@@ -878,13 +1047,43 @@ public class PlanetCreateActivity extends AppCompatActivity {
 // 기존 행성에 사진을 추가하는 경우를 위한 참조
                 final DocumentReference existingPlanetRef;
 
-                if (existingPlanetId != null
-                        && !existingPlanetId.isEmpty()) {
+                // 행성 하나 = 한 달: 고른 달의 행성이 이미 있으면 거기에 추가
+                final String monthKey =
+                        PlanetMonth.key(monthYear, monthMonth);
+
+                String foundId =
+                        existingPlanetId != null
+                                && !existingPlanetId.isEmpty()
+                                ? existingPlanetId
+                                : null;
+
+                if (foundId == null) {
+
+                    QuerySnapshot all = Tasks.await(
+                            db.collection("galaxies")
+                                    .document(galaxyId)
+                                    .collection("planets")
+                                    .get(Source.SERVER)
+                    );
+
+                    for (DocumentSnapshot planetDoc : all.getDocuments()) {
+
+                        if (monthKey.equals(PlanetMonth.of(planetDoc))) {
+                            foundId = planetDoc.getId();
+                            break;
+                        }
+                    }
+                }
+
+                final String targetPlanetId = foundId;
+                final boolean addToExisting = targetPlanetId != null;
+
+                if (addToExisting) {
 
                     existingPlanetRef = db.collection("galaxies")
                             .document(galaxyId)
                             .collection("planets")
-                            .document(existingPlanetId);
+                            .document(targetPlanetId);
 
                     // Cloudinary 업로드 전에 기존 행성 확인
                     DocumentSnapshot existing = Tasks.await(
@@ -982,13 +1181,13 @@ public class PlanetCreateActivity extends AppCompatActivity {
 
                     planet.put("createdBy", uid);
 
-                    // planet_01 ~ planet_06 랜덤 선택
-                    int randomIndex = new java.util.Random()
-                            .nextInt(PLANET_ASSETS.length);
-
+                    // 달에 따라 행성 모양이 정해짐 (planet_01 ~ planet_06)
+                    // 1월=01, 2월=02 ... 6월=06, 7월=01 ... 반복
                     planet.put(
                             "planetAsset",
-                            PLANET_ASSETS[randomIndex]
+                            PLANET_ASSETS[
+                                    (monthMonth - 1) % PLANET_ASSETS.length
+                                    ]
                     );
 
                     planet.put("photoCount", uploaded.size());
@@ -1003,7 +1202,7 @@ public class PlanetCreateActivity extends AppCompatActivity {
                             db.collection("galaxies")
                                     .document(galaxyId)
                                     .collection("planets")
-                                    .document()
+                                    .document(monthKey)
                                     .set(planet)
                     );
 
@@ -1070,12 +1269,6 @@ public class PlanetCreateActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
 
                     saving = false;
-
-                    message(
-                            existingPlanetId == null
-                                    ? "행성이 생성되었습니다."
-                                    : "사진이 추가되었습니다."
-                    );
 
                     setResult(RESULT_OK);
                     finish();

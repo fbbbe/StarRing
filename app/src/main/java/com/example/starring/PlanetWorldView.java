@@ -24,9 +24,8 @@ import java.util.List;
  *
  * - 아기자기하게 꾸민 행성이 가운데에 떠 있음 (고리, 꽃, 버섯, 나무 등)
  * - 우주 재판장 눈싸움 외계인과 같은 모습의 외계인 두 명이 행성 위를 걸어다님
- * - 사진이 있는 달마다 핀이 꽂히고, 핀을 누르면 listener 로 알려줌
- *
- * 핀 위치: 1월이 맨 위, 시계 방향으로 30도씩 (7월이 맨 아래)
+ * - 사진이 있는 날짜마다 핀이 꽂히고, 핀을 누르면 listener 로 알려줌
+ *   (행성 하나 = 한 달. 핀은 날짜 순서대로 행성 둘레에 고르게 배치됨)
  */
 public class PlanetWorldView extends View {
 
@@ -55,6 +54,10 @@ public class PlanetWorldView extends View {
     private static final float STEP_HZ = 2.6f;
     private static final float STEP_BOUNCE_DP = 1.8f;
 
+    // 행성이 둥둥 떠 있는 정도: 위아래로 움직이는 폭(dp)과 한 번 오르내리는 시간(ms)
+    private static final float FLOAT_DP = 4f;
+    private static final float FLOAT_PERIOD_MS = 4200f;
+
     // 핀 크기 (dp)
     private static final float PIN_HEAD_DP = 19f;
     private static final float PIN_STEM_DP = 11f;
@@ -72,16 +75,25 @@ public class PlanetWorldView extends View {
 
     public static class Pin {
 
-        public final int month;        // 1 ~ 12
-        public final int count;        // 그 달의 사진 수
+        public final String date;      // "2026-11-05"
+        public final int month;        // 11
+        public final int day;          // 5
+        public final int count;        // 그 날짜의 사진 수
         public final int photoIndex;   // 대표 사진의 목록 위치
         public final String url;       // 대표 사진 주소
 
         Bitmap thumb;
         BitmapShader shader;
 
-        public Pin(int month, int count, int photoIndex, String url) {
+        // 화면 크기에 맞춰 계산되는 값
+        float angle;    // 행성 위 위치 (맨 위 0도, 시계 방향)
+        float headR;    // 핀 머리 반지름(px)
+
+        public Pin(String date, int month, int day,
+                   int count, int photoIndex, String url) {
+            this.date = date;
             this.month = month;
+            this.day = day;
             this.count = count;
             this.photoIndex = photoIndex;
             this.url = url;
@@ -93,7 +105,7 @@ public class PlanetWorldView extends View {
     }
 
     private final List<Pin> pins = new ArrayList<>();
-    private int selectedMonth = 0;
+    private String selectedDate = "";
     private OnPinClickListener listener;
 
     // ------------------------------------
@@ -119,6 +131,7 @@ public class PlanetWorldView extends View {
     private float cx;
     private float cy;
     private float radius;
+    private float bobY;   // 지금 떠 있는 높이 변화(px)
 
     // 반짝이 별 위치 (화면 크기 대비 비율)
     private static final float[][] TWINKLES = {
@@ -196,8 +209,8 @@ public class PlanetWorldView extends View {
         invalidate();
     }
 
-    public void setSelectedMonth(int month) {
-        selectedMonth = month;
+    public void setSelectedDate(String date) {
+        selectedDate = date == null ? "" : date;
         invalidate();
     }
 
@@ -250,7 +263,16 @@ public class PlanetWorldView extends View {
         int w = getWidth();
         int h = getHeight();
 
+        layoutPins();
+
         drawTwinkles(canvas, now, w, h);
+
+        // 행성 전체(외계인, 핀 포함)가 둥둥 떠다님
+        bobY = (float) Math.sin(2.0 * Math.PI * now / FLOAT_PERIOD_MS)
+                * FLOAT_DP * density;
+
+        canvas.save();
+        canvas.translate(0f, bobY);
 
         drawRing(canvas, true);
         drawPlanet(canvas);
@@ -266,6 +288,8 @@ public class PlanetWorldView extends View {
         for (Pin pin : pins) {
             drawPin(canvas, pin);
         }
+
+        canvas.restore();
 
         // 걷는 모습이 계속 움직이도록 다음 프레임 예약
         // (화면에서 숨겨지면 onDraw 가 멈추므로 같이 멈춤)
@@ -592,29 +616,55 @@ public class PlanetWorldView extends View {
 
     // ----- 월별 핀 -----
 
+    /**
+     * 핀을 행성 둘레에 고르게 배치. 핀이 많으면 서로 겹치지 않게
+     * 머리 크기를 줄인다.
+     */
+    private void layoutPins() {
+
+        int n = pins.size();
+
+        if (n == 0) return;
+
+        float base = PIN_HEAD_DP * density;
+        float stem = PIN_STEM_DP * density;
+
+        float spacing = (float) (2.0 * Math.PI * (radius + stem + base) / n);
+
+        float headR = Math.min(base, Math.max(8f * density, spacing * 0.42f));
+
+        for (int i = 0; i < n; i++) {
+
+            Pin pin = pins.get(i);
+
+            pin.angle = 360f * i / n;
+            pin.headR = headR;
+        }
+    }
+
     /** 핀 머리(동그란 부분) 중심 위치. 사진은 항상 똑바로 보이도록 회전하지 않음 */
     private float headX(Pin pin) {
 
-        double a = Math.toRadians((pin.month - 1) * 30.0);
-        float dist = radius + (PIN_STEM_DP + PIN_HEAD_DP) * density;
+        double a = Math.toRadians(pin.angle);
+        float dist = radius + PIN_STEM_DP * density + pin.headR;
 
         return cx + (float) Math.sin(a) * dist;
     }
 
     private float headY(Pin pin) {
 
-        double a = Math.toRadians((pin.month - 1) * 30.0);
-        float dist = radius + (PIN_STEM_DP + PIN_HEAD_DP) * density;
+        double a = Math.toRadians(pin.angle);
+        float dist = radius + PIN_STEM_DP * density + pin.headR;
 
         return cy - (float) Math.cos(a) * dist;
     }
 
     private void drawPin(Canvas canvas, Pin pin) {
 
-        float angle = (pin.month - 1) * 30f;
-        boolean selected = pin.month == selectedMonth;
+        float angle = pin.angle;
+        boolean selected = pin.date.equals(selectedDate);
 
-        float headR = PIN_HEAD_DP * density * (selected ? 1.15f : 1f);
+        float headR = pin.headR * (selected ? 1.15f : 1f);
 
         float hx = headX(pin);
         float hy = headY(pin);
@@ -674,28 +724,31 @@ public class PlanetWorldView extends View {
             drawSparkle(canvas, hx, hy, headR * 0.5f);
         }
 
-        // 월 라벨 (아래쪽 알약)
-        float pillW = 30f * density;
-        float pillH = 14f * density;
-        float pillY = hy + headR * 0.92f;
+        // 날짜 라벨 (아래쪽 알약): 핀이 너무 작아지면 생략
+        if (headR >= 14f * density) {
 
-        rect.set(hx - pillW / 2f, pillY - pillH / 2f,
-                hx + pillW / 2f, pillY + pillH / 2f);
+            float pillW = 26f * density;
+            float pillH = 14f * density;
+            float pillY = hy + headR * 0.92f;
 
-        paint.setColor(0xFF7F6BE0);
-        canvas.drawRoundRect(rect, pillH / 2f, pillH / 2f, paint);
+            rect.set(hx - pillW / 2f, pillY - pillH / 2f,
+                    hx + pillW / 2f, pillY + pillH / 2f);
 
-        textPaint.setColor(0xFFFFFFFF);
-        textPaint.setTextSize(9.5f * density);
-        canvas.drawText(
-                pin.month + "월",
-                hx,
-                pillY + 3.4f * density,
-                textPaint
-        );
+            paint.setColor(0xFF7F6BE0);
+            canvas.drawRoundRect(rect, pillH / 2f, pillH / 2f, paint);
+
+            textPaint.setColor(0xFFFFFFFF);
+            textPaint.setTextSize(9.5f * density);
+            canvas.drawText(
+                    pin.day + "일",
+                    hx,
+                    pillY + 3.4f * density,
+                    textPaint
+            );
+        }
 
         // 사진이 2장 이상이면 오른쪽 위에 개수
-        if (pin.count > 1) {
+        if (pin.count > 1 && headR >= 11f * density) {
 
             float bx = hx + headR * 0.78f;
             float by = hy - headR * 0.78f;
@@ -735,7 +788,10 @@ public class PlanetWorldView extends View {
     // 핀 터치
     // ------------------------------------
 
-    private Pin pinAt(float x, float y) {
+    private Pin pinAt(float x, float touchY) {
+
+        // 떠 있는 만큼 터치 위치를 되돌려서 비교
+        float y = touchY - bobY;
 
         // 위에 그려진 핀(나중에 그린 것)부터 검사
         for (int i = pins.size() - 1; i >= 0; i--) {
@@ -745,7 +801,7 @@ public class PlanetWorldView extends View {
             float dx = x - headX(pin);
             float dy = y - headY(pin);
 
-            float hit = (PIN_HEAD_DP + 8f) * density;
+            float hit = Math.max(pin.headR, 12f * density) + 8f * density;
 
             if (dx * dx + dy * dy <= hit * hit) {
                 return pin;
