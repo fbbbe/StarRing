@@ -13,6 +13,7 @@ import com.google.firebase.firestore.DocumentSnapshot;
 import com.google.firebase.firestore.EventListener;
 import com.google.firebase.firestore.FieldValue;
 import com.google.firebase.firestore.FirebaseFirestore;
+import com.google.firebase.firestore.FirebaseFirestoreException;
 import com.google.firebase.firestore.ListenerRegistration;
 
 import java.util.ArrayList;
@@ -229,7 +230,7 @@ public class GalaxyRepository {
         final DocumentReference userRef =
                 userRef(uid);
 
-        return db.runTransaction(tx -> {
+        Task<String> task = db.runTransaction(tx -> {
 
             // 1. 초대코드와 본인 정보만 읽기
             DocumentSnapshot invite = tx.get(codeRef);
@@ -302,6 +303,16 @@ public class GalaxyRepository {
             );
 
             return galaxyId;
+        });
+
+        // 보안 규칙에서 거부 = 코드 만료(24시간 초과) 또는 동시 합류에서 먼저 합류한 사람이 있음
+        // → "다시 로그인" 대신 초대코드 안내 문구
+        return task.continueWithTask(t -> {
+            if (!t.isSuccessful() && isPermissionDenied(t.getException())) {
+                return Tasks.forException(
+                        new CoupleLinkException(Reason.CODE_EXPIRED_OR_DENIED));
+            }
+            return t;
         });
     }
 
@@ -575,6 +586,20 @@ public class GalaxyRepository {
             return (List<String>) value;
         }
         return new ArrayList<>();
+    }
+
+    /** 예외(원인 체인 포함)가 Firestore 보안 규칙 거부인지 */
+    private static boolean isPermissionDenied(Exception e) {
+        Throwable t = e;
+        while (t != null) {
+            if (t instanceof FirebaseFirestoreException
+                    && ((FirebaseFirestoreException) t).getCode()
+                    == FirebaseFirestoreException.Code.PERMISSION_DENIED) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
     }
 
 
