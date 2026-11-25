@@ -19,6 +19,9 @@ import android.widget.Toast;
 import com.example.starring.court.StarConsumption;
 
 
+import com.example.starring.common.GalaxyDates;
+
+import java.time.LocalDate;
 import java.util.Calendar;
 import java.util.TimeZone;
 import com.example.starring.court.CourtMainActivity;
@@ -655,8 +658,14 @@ public class GalaxyActivity extends Activity {
                 constellationMask
         );
 
-        // 기존 초신성 / 백색왜성 테스트
-        galaxyView.setSpecialBodyCounts(1, 1);
+        // 특수천체: 1주년마다 초신성(크게 그려짐 = 많이 화려),
+        // 100일마다 백색왜성(작게 그려짐 = 덜 화려). 각각 GalaxyView에서 최대 20개로 제한
+        LocalDate specialStart = LocalDate.of(startYear, startMonth, startDay);
+        LocalDate specialToday = GalaxyDates.today().plusDays(TEST_ADD_DAYS);
+        galaxyView.setSpecialBodyCounts(
+                GalaxyDates.yearCount(specialStart, specialToday),
+                GalaxyDates.hundredDayCount(specialStart, specialToday)
+        );
     }
 
     // ------------------------------------

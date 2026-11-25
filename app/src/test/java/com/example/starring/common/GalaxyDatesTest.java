@@ -56,6 +56,55 @@ public class GalaxyDatesTest {
         assertNull(GalaxyDates.effectiveStart((String) null, null, KST));
     }
 
+    // ───────── 특수천체 개수 (GalaxyActivity → setSpecialBodyCounts(초신성=yearCount, 백색왜성=hundredDayCount)) ─────────
+
+    /** GalaxyView.MAX_SPECIAL_BODIES와 같은 값 (화면에서 종류별 최대 20개) */
+    private static final int MAX_SPECIAL_BODIES = 20;
+
+    private static int[] special(LocalDate start, LocalDate today) {
+        return new int[]{
+                Math.min(GalaxyDates.yearCount(start, today), MAX_SPECIAL_BODIES),
+                Math.min(GalaxyDates.hundredDayCount(start, today), MAX_SPECIAL_BODIES)};
+    }
+
+    @Test
+    public void specialBodies_milestones() {
+        LocalDate s = d(2024, 5, 12);
+        // 만난 날 당일(1일째): 0 / 0
+        assertEquals(0, special(s, s)[0]);
+        assertEquals(0, special(s, s)[1]);
+        // 99일째: 아직 0 / 100일째(경과 99일): 백색왜성 1
+        assertEquals(0, special(s, d(2024, 8, 18))[1]);
+        assertEquals(0, special(s, d(2024, 8, 19))[0]);
+        assertEquals(1, special(s, d(2024, 8, 19))[1]);
+        // 1주년(2025-05-12, 366일째): 초신성 1, 백색왜성 3
+        assertEquals(1, special(s, d(2025, 5, 12))[0]);
+        assertEquals(3, special(s, d(2025, 5, 12))[1]);
+        // 1주년 전날: 초신성 0
+        assertEquals(0, special(s, d(2025, 5, 11))[0]);
+        // 5주년(2029-05-12, 1827일째): 초신성 5, 백색왜성 18
+        assertEquals(5, special(s, d(2029, 5, 12))[0]);
+        assertEquals(18, special(s, d(2029, 5, 12))[1]);
+        // 10주년(2034-05-12, 3653일째): 초신성 10, 백색왜성 36 → 상한 20
+        assertEquals(10, special(s, d(2034, 5, 12))[0]);
+        assertEquals(36, GalaxyDates.hundredDayCount(s, d(2034, 5, 12)));
+        assertEquals(20, special(s, d(2034, 5, 12))[1]);
+    }
+
+    @Test
+    public void specialBodies_caps() {
+        LocalDate s = d(2024, 5, 12);
+        // 백색왜성은 2000일째(약 5.5년)에 20개로 상한 도달
+        assertEquals(19, special(s, s.plusDays(1998))[1]);   // 1999일째
+        assertEquals(20, special(s, s.plusDays(1999))[1]);   // 2000일째
+        // 초신성은 20주년에 상한 도달, 이후 유지
+        assertEquals(20, special(s, s.plusYears(20))[0]);
+        assertEquals(20, special(s, s.plusYears(50))[0]);
+        // 만난 날이 미래면 0
+        assertEquals(0, special(s, s.minusDays(1))[0]);
+        assertEquals(0, special(s, s.minusDays(1))[1]);
+    }
+
     // ───────── 문자열 변환 ─────────
 
     @Test
