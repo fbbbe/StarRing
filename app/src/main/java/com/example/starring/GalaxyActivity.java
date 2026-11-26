@@ -587,75 +587,45 @@ public class GalaxyActivity extends Activity {
     }
 
     // ------------------------------------
-    // 토성: 행성 둘러보기 (달별 행성 목록 → 상세)
+    // 토성: 다른 은하계에서 공개한 행성만 조회
     // ------------------------------------
 
     private void showPlanetBrowser() {
+        loadGalaxyId(myGalaxyId -> FirebaseFirestore.getInstance()
+                .collectionGroup("planets")
+                .whereEqualTo("isPublic", true)
+                .limit(100)
+                .get()
+                .addOnSuccessListener(this, snapshot -> {
+                    ArrayList<String> paths = new ArrayList<>();
+                    for (DocumentSnapshot doc : snapshot.getDocuments()) {
+                        // 같은 planetId가 여러 은하계에 있어도 전체 경로로 구별
+                        com.google.firebase.firestore.DocumentReference parent =
+                                doc.getReference().getParent().getParent();
+                        if (parent == null) continue;
+                        if (myGalaxyId.equals(parent.getId())) continue;
+                        paths.add(doc.getReference().getPath());
+                    }
 
-        loadGalaxyId(galaxyId ->
+                    if (paths.isEmpty()) {
+                        Toast.makeText(this,
+                                "다른 은하계에서 공개한 행성이 아직 없어요.",
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
 
-                FirebaseFirestore.getInstance()
-                        .collection("galaxies")
-                        .document(galaxyId)
-                        .collection("planets")
-                        .orderBy("createdAt", Query.Direction.ASCENDING)
-                        .limit(24)
-                        .get()
-                        .addOnSuccessListener(this, snapshot -> {
-
-                            List<DocumentSnapshot> docs = snapshot.getDocuments();
-
-                            if (docs.isEmpty()) {
-                                Toast.makeText(this,
-                                        "아직 행성이 없어요. 수성에서 만들어 보세요!",
-                                        Toast.LENGTH_SHORT).show();
-                                return;
-                            }
-
-                            // 최신 달이 위로 오게
-                            final String[] ids = new String[docs.size()];
-                            final String[] labels = new String[docs.size()];
-
-                            for (int i = 0; i < docs.size(); i++) {
-
-                                DocumentSnapshot doc = docs.get(docs.size() - 1 - i);
-
-                                String key = PlanetMonth.of(doc);
-                                String month = key != null
-                                        ? PlanetMonth.label(key)
-                                        : "";
-
-                                Long count = doc.getLong("photoCount");
-
-                                ids[i] = doc.getId();
-                                labels[i] = (month.isEmpty() ? "행성" : month + " 행성")
-                                        + "  ·  사진 "
-                                        + (count == null ? 0 : count) + "장";
-                            }
-
-                            new android.app.AlertDialog.Builder(
-                                    this, R.style.StarRing_LightDialog)
-                                    .setTitle("행성 둘러보기")
-                                    .setItems(labels, (dialog, which) -> {
-                                        Intent intent = new Intent(
-                                                GalaxyActivity.this,
-                                                PlanetDetailActivity.class
-                                        );
-                                        intent.putExtra(
-                                                PlanetDetailActivity.EXTRA_PLANET_ID,
-                                                ids[which]
-                                        );
-                                        startActivity(intent);
-                                    })
-                                    .setNegativeButton("닫기", null)
-                                    .show();
-                        })
-                        .addOnFailureListener(this, e -> {
-                            android.util.Log.e("StarRingMenu", "행성 목록 조회 실패", e);
-                            Toast.makeText(this, "행성 목록을 불러오지 못했어요.",
-                                    Toast.LENGTH_LONG).show();
-                        })
-        );
+                    Intent intent = new Intent(this, PlanetDetailActivity.class);
+                    intent.putExtra(PlanetDetailActivity.EXTRA_BROWSE_MODE, true);
+                    intent.putStringArrayListExtra(
+                            PlanetDetailActivity.EXTRA_BROWSE_PATHS, paths);
+                    startActivity(intent);
+                })
+                .addOnFailureListener(this, e -> {
+                    android.util.Log.e("StarRingBrowse", "공개 행성 조회 실패", e);
+                    Toast.makeText(this,
+                            "행성 둘러보기 실패: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                }));
     }
 
     // 로그인한 계정의 은하계 ID 조회 (행성 둘러보기용)
