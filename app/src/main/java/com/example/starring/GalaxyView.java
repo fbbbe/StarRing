@@ -405,8 +405,8 @@ public class GalaxyView extends View {
         }
 
         float size = big
-                ? 13f + random.nextFloat() * 9f
-                : 5f + random.nextFloat() * 3f;
+                ? 13f + random.nextFloat() * 20f
+                : 5f + random.nextFloat() * 15f;
 
         return new Star(x, y, size, big);
     }
