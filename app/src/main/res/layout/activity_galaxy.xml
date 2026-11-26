@@ -51,24 +51,24 @@
         android:clickable="true"
         android:focusable="true"/>
 
+    <!-- 하단 중앙 고정 태양 PNG -->
+    <ImageView
+        android:id="@+id/btnSun"
+        android:layout_width="110dp"
+        android:layout_height="110dp"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="8dp"
+        android:src="@drawable/solar_sun"
+        android:scaleType="fitCenter"
+        android:contentDescription="태양계 메뉴 열기"
+        android:clickable="true"
+        android:focusable="true"/>
+
     <!-- 태양 중심 궤도 메뉴 (평소에는 invisible, 크기는 유지해서 위치 계산 가능) -->
     <com.example.starring.SolarOrbitMenuView
         android:id="@+id/solarMenu"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:visibility="invisible"/>
-
-    <!-- 하단 중앙 고정 태양 PNG -->
-    <ImageView
-        android:id="@+id/btnSun"
-        android:layout_width="84dp"
-        android:layout_height="84dp"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="20dp"
-        android:src="@drawable/solar_sun"
-        android:scaleType="fitCenter"
-        android:contentDescription="태양계 메뉴 열기"
-        android:clickable="true"
-        android:focusable="true"/>
 
 </FrameLayout>

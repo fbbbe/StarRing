@@ -475,8 +475,8 @@ public class GalaxyActivity extends Activity {
 
         // 열리면 태양이 처음보다 확실히 커지고, 닫으면 원래 크기로
         btnSun.animate()
-                .scaleX(open ? 1.25f : 1f)
-                .scaleY(open ? 1.25f : 1f)
+                .scaleX(open ? 2f : 1f)
+                .scaleY(open ? 2f : 1f)
                 .setDuration(250)
                 .start();
 
