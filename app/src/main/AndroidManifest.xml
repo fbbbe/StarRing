@@ -101,6 +101,10 @@
             android:name=".GalaxyDestroyActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".GalaxyRenameActivity"
+            android:exported="false" />
+
     </application>
 
 </manifest>
