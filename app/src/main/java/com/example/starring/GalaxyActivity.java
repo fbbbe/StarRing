@@ -58,8 +58,7 @@ public class GalaxyActivity extends Activity {
 
     // 태양계 메뉴
     private View solarDimOverlay;
-    private LinearLayout solarMenuPanel;
-    private LinearLayout solarMenuGrid;
+    private SolarOrbitMenuView solarMenu;
     private ImageView btnSun;
 
     private boolean menuOpen = false;
@@ -87,6 +86,18 @@ public class GalaxyActivity extends Activity {
     };
 
     private ListenerRegistration connectionListener;
+
+    // 메뉴 역할 (행성 이름 아래 알약, 앞에 → 는 자동)
+    private static final String[] MENU_ACTIONS = {
+            "행성 생성",     // 수성
+            "블랙홀 생성",   // 금성
+            "우주 재판장",   // 지구
+            "이름 변경",     // 화성 (준비 중)
+            "메인",          // 목성
+            "행성 둘러보기", // 토성
+            "로그아웃",      // 천왕성
+            "연결 끊기"      // 해왕성
+    };
 
     // 행성 메뉴 PNG
     private static final int[] MENU_IMAGES = {
@@ -240,11 +251,8 @@ public class GalaxyActivity extends Activity {
         solarDimOverlay =
                 findViewById(R.id.solarDimOverlay);
 
-        solarMenuPanel =
-                findViewById(R.id.solarMenuPanel);
-
-        solarMenuGrid =
-                findViewById(R.id.solarMenuGrid);
+        solarMenu =
+                findViewById(R.id.solarMenu);
 
         btnSun =
                 findViewById(R.id.btnSun);
@@ -259,8 +267,24 @@ public class GalaxyActivity extends Activity {
             setMenuOpen(false);
         });
 
-        // 행성 메뉴 이미지 생성
-        createPlanetMenu();
+        // 궤도 메뉴: 태양 중심 위치 알려주기 (btnSun 의 하단 여백 + 높이/2)
+        FrameLayout.LayoutParams sunLp =
+                (FrameLayout.LayoutParams) btnSun.getLayoutParams();
+        solarMenu.setSunCenterFromBottom(
+                sunLp.bottomMargin + sunLp.height / 2
+        );
+
+        // 8개 항목 (실제 태양계 순서: 안쪽 궤도 = 수성)
+        List<SolarOrbitMenuView.Item> items = new ArrayList<>();
+        for (int i = 0; i < MENU_NAMES.length; i++) {
+            items.add(new SolarOrbitMenuView.Item(
+                    MENU_IMAGES[i],
+                    MENU_NAMES[i],
+                    MENU_ACTIONS[i]
+            ));
+        }
+        solarMenu.setItems(items);
+        solarMenu.setOnItemSelectedListener(this::onPlanetSelected);
     }
 
     // ------------------------------------
@@ -275,9 +299,18 @@ public class GalaxyActivity extends Activity {
                 open ? View.VISIBLE : View.GONE
         );
 
-        solarMenuPanel.setVisibility(
-                open ? View.VISIBLE : View.GONE
-        );
+        if (open) {
+            solarMenu.open();
+        } else {
+            solarMenu.close();
+        }
+
+        // 열리면 태양이 처음보다 확실히 커지고, 닫으면 원래 크기로
+        btnSun.animate()
+                .scaleX(open ? 1.25f : 1f)
+                .scaleY(open ? 1.25f : 1f)
+                .setDuration(250)
+                .start();
 
         btnSun.setContentDescription(
                 open
@@ -309,113 +342,6 @@ public class GalaxyActivity extends Activity {
     }
 
     // ------------------------------------
-    // 3. 8개 행성 PNG 메뉴 생성
-    // ------------------------------------
-
-    private void createPlanetMenu() {
-
-        solarMenuGrid.removeAllViews();
-
-        // 4개씩 2줄 배치
-        for (int rowIndex = 0; rowIndex < 2; rowIndex++) {
-
-            LinearLayout row = new LinearLayout(this);
-            row.setOrientation(LinearLayout.HORIZONTAL);
-            row.setGravity(Gravity.CENTER);
-
-            for (int col = 0; col < 4; col++) {
-
-                final int index = rowIndex * 4 + col;
-
-                // 행성 메뉴 하나
-                LinearLayout item = new LinearLayout(this);
-
-                item.setOrientation(LinearLayout.VERTICAL);
-                item.setGravity(Gravity.CENTER);
-
-                item.setClickable(true);
-                item.setFocusable(true);
-
-                item.setContentDescription(
-                        MENU_NAMES[index] + " 메뉴"
-                );
-
-                // 행성 PNG
-                ImageView planetImage = new ImageView(this);
-
-                planetImage.setImageResource(
-                        MENU_IMAGES[index]
-                );
-
-                planetImage.setScaleType(
-                        ImageView.ScaleType.FIT_CENTER
-                );
-
-                planetImage.setContentDescription(null);
-
-                // PNG 표시 크기
-                LinearLayout.LayoutParams imageParams =
-                        new LinearLayout.LayoutParams(
-                                dp(60),
-                                dp(60)
-                        );
-
-                item.addView(
-                        planetImage,
-                        imageParams
-                );
-
-                // 행성 이름
-                TextView planetName = new TextView(this);
-
-                planetName.setText(MENU_NAMES[index]);
-                planetName.setTextSize(13f);
-                planetName.setTextColor(
-                        Color.parseColor("#EEE5F9")
-                );
-
-                planetName.setGravity(Gravity.CENTER);
-
-                LinearLayout.LayoutParams textParams =
-                        new LinearLayout.LayoutParams(
-                                LinearLayout.LayoutParams.MATCH_PARENT,
-                                dp(25)
-                        );
-
-                textParams.topMargin = dp(4);
-
-                item.addView(
-                        planetName,
-                        textParams
-                );
-
-                // 행성 클릭 이벤트
-                item.setOnClickListener(v -> {
-                    onPlanetSelected(index);
-                });
-
-                // 각 메뉴가 동일한 가로 폭 사용
-                LinearLayout.LayoutParams itemParams =
-                        new LinearLayout.LayoutParams(
-                                0,
-                                dp(100),
-                                1f
-                        );
-
-                row.addView(item, itemParams);
-            }
-
-            solarMenuGrid.addView(
-                    row,
-                    new LinearLayout.LayoutParams(
-                            LinearLayout.LayoutParams.MATCH_PARENT,
-                            LinearLayout.LayoutParams.WRAP_CONTENT
-                    )
-            );
-        }
-    }
-
-    // ------------------------------------
     // 4. 행성별 화면 이동
     // ------------------------------------
 
@@ -427,53 +353,32 @@ public class GalaxyActivity extends Activity {
         switch (index) {
 
             case 0:
-                // 수성 - 행성 생성 화면
-                startActivity(
-                        new Intent(
-                                this,
-                                PlanetCreateActivity.class
-                        )
-                );
+                // 수성 - 행성 생성
+                startActivity(new Intent(this, PlanetCreateActivity.class));
                 break;
 
             case 1:
-                // 금성 - 블랙홀 생성 화면
-                startActivity(
-                        new Intent(
-                                this,
-                                CourtWriteActivity.class
-                        )
-                );
+                // 금성 - 블랙홀 생성 (재판장 작성)
+                startActivity(new Intent(this, CourtWriteActivity.class));
                 break;
 
             case 2:
-                // 지구 - 우주 재판장 메인
-                startActivity(
-                        new Intent(
-                                this,
-                                CourtMainActivity.class
-                        )
-                );
+                // 지구 - 우주 재판장
+                startActivity(new Intent(this, CourtMainActivity.class));
                 break;
 
             case 3:
-                // 화성 - 행성 생성 화면
-                startActivity(
-                        new Intent(
-                                this,
-                                PlanetCreateActivity.class
-                        )
-                );
+                // 화성 - 은하계 이름 변경 (아직 미구현: 규칙 변경이 필요해 보류)
+                showComingSoon("은하계 이름 변경");
                 break;
 
             case 4:
-                // 목성 - 메인 은하계
-                // 이미 메인 화면이므로 이동하지 않음
+                // 목성 - 메인 페이지 (이미 메인이므로 이동 없음)
                 break;
 
             case 5:
-                // 토성 - 기능 없음
-                showComingSoon("토성");
+                // 토성 - 행성 둘러보기
+                showPlanetBrowser();
                 break;
 
             case 6:
@@ -482,15 +387,112 @@ public class GalaxyActivity extends Activity {
                 break;
 
             case 7:
-                // 해왕성 - 은하계 소멸
-                startActivity(
-                        new Intent(
-                                this,
-                                GalaxyDestroyActivity.class
-                        )
-                );
+                // 해왕성 - 탈퇴 / 연결 끊기 (은하계 소멸)
+                startActivity(new Intent(this, GalaxyDestroyActivity.class));
                 break;
         }
+    }
+
+    // ------------------------------------
+    // 토성: 행성 둘러보기 (달별 행성 목록 → 상세)
+    // ------------------------------------
+
+    private void showPlanetBrowser() {
+
+        loadGalaxyId(galaxyId ->
+
+                FirebaseFirestore.getInstance()
+                        .collection("galaxies")
+                        .document(galaxyId)
+                        .collection("planets")
+                        .orderBy("createdAt", Query.Direction.ASCENDING)
+                        .limit(24)
+                        .get()
+                        .addOnSuccessListener(this, snapshot -> {
+
+                            List<DocumentSnapshot> docs = snapshot.getDocuments();
+
+                            if (docs.isEmpty()) {
+                                Toast.makeText(this,
+                                        "아직 행성이 없어요. 수성에서 만들어 보세요!",
+                                        Toast.LENGTH_SHORT).show();
+                                return;
+                            }
+
+                            // 최신 달이 위로 오게
+                            final String[] ids = new String[docs.size()];
+                            final String[] labels = new String[docs.size()];
+
+                            for (int i = 0; i < docs.size(); i++) {
+
+                                DocumentSnapshot doc = docs.get(docs.size() - 1 - i);
+
+                                String key = PlanetMonth.of(doc);
+                                String month = key != null
+                                        ? PlanetMonth.label(key)
+                                        : "";
+
+                                Long count = doc.getLong("photoCount");
+
+                                ids[i] = doc.getId();
+                                labels[i] = (month.isEmpty() ? "행성" : month + " 행성")
+                                        + "  ·  사진 "
+                                        + (count == null ? 0 : count) + "장";
+                            }
+
+                            new android.app.AlertDialog.Builder(
+                                    this, R.style.StarRing_LightDialog)
+                                    .setTitle("행성 둘러보기")
+                                    .setItems(labels, (dialog, which) -> {
+                                        Intent intent = new Intent(
+                                                GalaxyActivity.this,
+                                                PlanetDetailActivity.class
+                                        );
+                                        intent.putExtra(
+                                                PlanetDetailActivity.EXTRA_PLANET_ID,
+                                                ids[which]
+                                        );
+                                        startActivity(intent);
+                                    })
+                                    .setNegativeButton("닫기", null)
+                                    .show();
+                        })
+                        .addOnFailureListener(this, e -> {
+                            android.util.Log.e("StarRingMenu", "행성 목록 조회 실패", e);
+                            Toast.makeText(this, "행성 목록을 불러오지 못했어요.",
+                                    Toast.LENGTH_LONG).show();
+                        })
+        );
+    }
+
+    // 로그인한 계정의 은하계 ID 조회 (행성 둘러보기용)
+    private void loadGalaxyId(java.util.function.Consumer<String> callback) {
+
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+
+        if (user == null) {
+            return;
+        }
+
+        FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(user.getUid())
+                .get()
+                .addOnSuccessListener(this, userDoc -> {
+
+                    String galaxyId = userDoc.getString("galaxyId");
+
+                    if (galaxyId == null) {
+                        Toast.makeText(this, "은하계 정보를 찾을 수 없어요.",
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
+                    callback.accept(galaxyId);
+                })
+                .addOnFailureListener(this, e ->
+                        Toast.makeText(this, "정보를 불러오지 못했어요.",
+                                Toast.LENGTH_SHORT).show());
     }
 
     private void showComingSoon(String name) {
