@@ -42,8 +42,8 @@ public class SolarOrbitMenuView extends FrameLayout {
     /** 메뉴 항목 하나 */
     public static class Item {
         final int imageRes;      // 행성 PNG
-        final String planetName; // 수성, 금성 ... (행성 옆에 표시)
-        final String action;     // 역할 (화면에는 안 보이고 접근성 설명에만 사용)
+        final String planetName; // 수성, 금성 ... (화면에는 안 보이고 접근성 설명에만 사용)
+        final String action;     // 행성 생성, 블랙홀 생성 ... (행성 아래에 표시되는 이름)
 
         public Item(int imageRes, String planetName, String action) {
             this.imageRes = imageRes;
@@ -53,12 +53,19 @@ public class SolarOrbitMenuView extends FrameLayout {
     }
 
     // ---- 모양 상수 ----
-    private static final float ICON_DP = 56f;            // 행성 크기
-    private static final float NAME_SP = 15f;            // 행성 이름 글자 크기
+    private static final float ICON_DP = 56f;            // 행성 기본 크기 (지구 기준)
+    private static final float NAME_SP = 13f;            // 행성 아래 이름 글자 크기
+    private static final float NAME_MAX_WIDTH_DP = 84f;  // 이름 최대 폭 (넘으면 2줄로 줄바꿈)
     private static final float ARC_STROKE_DP = 0.8f;     // 고리 두께
     private static final int ARC_ALPHA = 125;            // 고리 투명도 (0~255, 낮을수록 투명)
     private static final float DASH_ON_DP = 4f;          // 점선: 선 길이
     private static final float DASH_OFF_DP = 5f;         // 점선: 빈 길이
+
+    // 행성별 크기 배율 (실제 크기 차이를 "약간씩"만 반영 — 실제 비율 그대로면 목성이 수성의 30배라 화면이 깨짐)
+    // 수성, 금성, 지구, 화성, 목성, 토성, 천왕성, 해왕성
+    private static final float[] SIZE_SCALE = {
+            0.70f, 0.90f, 0.95f, 0.80f, 1.30f, 1.20f, 1.00f, 1.00f
+    };
 
     // ---- 배치 상수 ----
     // 안쪽 궤도부터(수성~해왕성) 행성이 놓일 각도. 오른쪽 수평선이 0°, 바로 위가 90°, 왼쪽 수평선이 180°.
@@ -73,7 +80,7 @@ public class SolarOrbitMenuView extends FrameLayout {
             105f,  // 천왕성: 왼쪽
             90f    // 해왕성: 가장 위
     };
-    private static final float EDGE_MARGIN_DP = 36f;      // 화면 좌우 가장자리 여백 (행성이 잘리지 않게)
+    private static final float EDGE_MARGIN_DP = 44f;      // 화면 좌우 가장자리 여백 (행성·이름이 잘리지 않게)
     private static final float FIRST_ORBIT_DP = 110f;     // 가장 안쪽 궤도 반지름
     private static final float MAX_ORBIT_STEP_DP = 64f;   // 궤도 간격(최대)
     private static final float MIN_ORBIT_STEP_DP = 40f;   // 궤도 간격(최소)
@@ -156,7 +163,7 @@ public class SolarOrbitMenuView extends FrameLayout {
 
         for (int i = 0; i < data.size(); i++) {
             final int index = i;
-            View v = createItemView(data.get(i));
+            View v = createItemView(data.get(i), i);
             v.setOnClickListener(view -> {
                 if (!open) return; // 닫히는 중에는 무시
                 if (listener != null) listener.onItemSelected(index);
@@ -175,7 +182,7 @@ public class SolarOrbitMenuView extends FrameLayout {
     }
 
     /** 행성 PNG + 아래에 이름. 알약(→ 역할)은 없음 */
-    private View createItemView(Item item) {
+    private View createItemView(Item item, int index) {
         LinearLayout box = new LinearLayout(getContext());
         box.setOrientation(LinearLayout.VERTICAL);
         box.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -187,14 +194,17 @@ public class SolarOrbitMenuView extends FrameLayout {
         icon.setImageResource(item.imageRes);
         icon.setScaleType(ImageView.ScaleType.FIT_CENTER);
         icon.setContentDescription(null);
-        box.addView(icon, new LinearLayout.LayoutParams(dp(ICON_DP), dp(ICON_DP)));
+        int iconPx = iconSizePx(index);
+        box.addView(icon, new LinearLayout.LayoutParams(iconPx, iconPx));
 
         TextView name = new TextView(getContext());
-        name.setText(item.planetName);
+        name.setText(item.action);   // 수성 → "행성 생성" 처럼 역할 이름을 표시
         name.setTextSize(NAME_SP);
         name.setTextColor(Color.WHITE);
         name.setShadowLayer(dp(3), 0, dp(1), Color.BLACK);
-        name.setSingleLine(true);
+        name.setGravity(Gravity.CENTER);
+        name.setMaxWidth(dp(NAME_MAX_WIDTH_DP));
+        name.setMaxLines(2);
         name.getPaint().setFakeBoldText(true);
 
         LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(
@@ -216,10 +226,9 @@ public class SolarOrbitMenuView extends FrameLayout {
         int h = b - t;
         computeGeometry(w, h);
 
-        int iconHalf = dp(ICON_DP) / 2;
-
         for (int i = 0; i < itemViews.size(); i++) {
             View v = itemViews.get(i);
+            int iconHalf = iconSizePx(i) / 2;
             int vw = v.getMeasuredWidth();
             int vh = v.getMeasuredHeight();
             int cx = Math.round(itemCx[i]);
@@ -248,7 +257,8 @@ public class SolarOrbitMenuView extends FrameLayout {
         sunCx = w / 2f;
         sunCy = h - sunFromBottomPx;
 
-        float iconHalf = dp(ICON_DP) / 2f;
+        // 가장 바깥 궤도(마지막 행성)의 반지름만큼은 위쪽 여백 안에 들어와야 함
+        float iconHalf = iconSizePx(n - 1) / 2f;
         float xMax = w / 2f - dp(EDGE_MARGIN_DP);
 
         float r0 = dp(FIRST_ORBIT_DP);
@@ -409,6 +419,12 @@ public class SolarOrbitMenuView extends FrameLayout {
         super.onDetachedFromWindow();
         if (progressAnimator != null) progressAnimator.cancel();
         stopWave();
+    }
+
+    /** i번째 행성 PNG 한 변 크기(px) = 기본 크기 × 행성별 배율 */
+    private int iconSizePx(int index) {
+        float scale = SIZE_SCALE[index % SIZE_SCALE.length];
+        return dp(ICON_DP * scale);
     }
 
     private int dp(float value) {
