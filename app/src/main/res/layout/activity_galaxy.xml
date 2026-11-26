@@ -51,40 +51,12 @@
         android:clickable="true"
         android:focusable="true"/>
 
-    <!-- 태양계 메뉴 패널 -->
-    <LinearLayout
-        android:id="@+id/solarMenuPanel"
+    <!-- 태양 중심 궤도 메뉴 (평소에는 invisible, 크기는 유지해서 위치 계산 가능) -->
+    <com.example.starring.SolarOrbitMenuView
+        android:id="@+id/solarMenu"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:layout_marginStart="18dp"
-        android:layout_marginEnd="18dp"
-        android:layout_marginBottom="116dp"
-        android:padding="16dp"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:background="@drawable/bg_solar_menu_panel"
-        android:visibility="gone"
-        android:clickable="true">
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="14dp"
-            android:text="태양계"
-            android:textColor="#F4E8FF"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:gravity="center"/>
-
-        <!-- PNG 메뉴 버튼이 생성되는 위치 -->
-        <LinearLayout
-            android:id="@+id/solarMenuGrid"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"/>
-
-    </LinearLayout>
+        android:layout_height="match_parent"
+        android:visibility="invisible"/>
 
     <!-- 하단 중앙 고정 태양 PNG -->
     <ImageView
