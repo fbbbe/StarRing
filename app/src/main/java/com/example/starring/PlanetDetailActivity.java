@@ -13,6 +13,7 @@ import android.view.ViewOutlineProvider;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
@@ -52,6 +53,8 @@ import java.util.Map;
 public class PlanetDetailActivity extends Activity {
 
     public static final String EXTRA_PLANET_ID = "planet_id";
+    public static final String EXTRA_BROWSE_MODE = "browse_mode";
+    public static final String EXTRA_BROWSE_PATHS = "browse_planet_paths";
 
     private static final int MAX_CAPTION = 300;
 
@@ -73,6 +76,21 @@ public class PlanetDetailActivity extends Activity {
 
     private DocumentReference planetRef;
     private ListenerRegistration planetListener;
+    private ListenerRegistration likesListener;
+    private boolean browseMode;
+    private boolean browseAnimating;
+    private float browseDownX, browseDownY;
+    private final ArrayList<String> browsePaths = new ArrayList<>();
+    private TextView btnLike;
+    private TextView btnPublish;
+    private TextView browsePrev, browseNext;
+    private TextView topTitle;
+    private int currentThemeIndex;
+    private int likeCount;
+    private boolean liked;
+    private boolean likeBusy;
+    private boolean publicPlanet;
+    private FrameLayout planetFrame;
 
     private ImageView previewImage;
     private TextView textCaption;
@@ -142,19 +160,29 @@ public class PlanetDetailActivity extends Activity {
 
         SpaceBackdrop.applyLightWindow(this);
 
+        browseMode = getIntent().getBooleanExtra(EXTRA_BROWSE_MODE, false);
+        if (browseMode) {
+            ArrayList<String> paths = getIntent().getStringArrayListExtra(EXTRA_BROWSE_PATHS);
+            if (paths != null) browsePaths.addAll(paths);
+        }
         createScreen();
 
-        String planetId =
-                getIntent().getStringExtra(EXTRA_PLANET_ID);
-
-        if (planetId == null || planetId.isEmpty()) {
-            finish();
-            return;
+        if (browseMode) {
+            if (browsePaths.isEmpty()) {
+                message("둘러볼 행성이 없습니다.");
+                finish();
+                return;
+            }
+            switchBrowsePlanet(browsePaths.get(0));
+        } else {
+            String planetId = getIntent().getStringExtra(EXTRA_PLANET_ID);
+            if (planetId == null || planetId.isEmpty()) {
+                finish();
+                return;
+            }
+            currentPlanetId = planetId;
+            loadPlanetReference(planetId);
         }
-
-        currentPlanetId = planetId;
-
-        loadPlanetReference(planetId);
     }
 
     // ==========================================
@@ -196,8 +224,8 @@ public class PlanetDetailActivity extends Activity {
 
         back.setOnClickListener(v -> finish());
 
-        TextView title = makeText(
-                "행성 상세", 20, C_TEXT, true
+        topTitle = makeText(
+                browseMode ? "행성 둘러보기" : "행성 상세", 20, C_TEXT, true
         );
 
         LinearLayout.LayoutParams titleParams =
@@ -209,7 +237,7 @@ public class PlanetDetailActivity extends Activity {
 
         titleParams.leftMargin = dp(4);
 
-        top.addView(title, titleParams);
+        top.addView(topTitle, titleParams);
 
         root.addView(
                 top,
@@ -347,6 +375,7 @@ public class PlanetDetailActivity extends Activity {
         );
 
         galleryPage.addView(btnEdit, editParams);
+        if (browseMode) btnEdit.setVisibility(View.GONE);
 
         // 기존 행성에 사진 추가
         TextView btnAddPhotos = makeText(
@@ -374,6 +403,7 @@ public class PlanetDetailActivity extends Activity {
         );
 
         galleryPage.addView(btnAddPhotos, addParams);
+        if (browseMode) btnAddPhotos.setVisibility(View.GONE);
 
         btnAddPhotos.setOnClickListener(v -> {
 
@@ -513,6 +543,7 @@ public class PlanetDetailActivity extends Activity {
                 monthBar,
                 new LinearLayout.LayoutParams(-1, -2)
         );
+        if (browseMode) monthBar.setVisibility(View.GONE);
 
         planetPrev.setOnClickListener(v -> movePlanet(-1));
         planetNext.setOnClickListener(v -> movePlanet(1));
@@ -520,7 +551,7 @@ public class PlanetDetailActivity extends Activity {
         planetView = new PlanetWorldView(this);
 
         // 행성 위에 "테마" 버튼을 얹기 위해 FrameLayout 으로 감쌈
-        FrameLayout planetFrame = new FrameLayout(this);
+        planetFrame = new FrameLayout(this);
 
         planetFrame.addView(
                 planetView,
@@ -539,6 +570,16 @@ public class PlanetDetailActivity extends Activity {
         themeParams.setMargins(0, dp(6), dp(16), 0);
 
         planetFrame.addView(btnTheme, themeParams);
+        if (browseMode) btnTheme.setVisibility(View.GONE);
+
+        if (browseMode) {
+            // 행성 한가운데 좌우 원형 버튼 (인스타 가로 넘김처럼 이동)
+            browsePrev = addBrowseArrow(planetFrame, "‹", Gravity.START);
+            browseNext = addBrowseArrow(planetFrame, "›", Gravity.END);
+            browsePrev.setOnClickListener(v -> movePlanet(-1));
+            browseNext.setOnClickListener(v -> movePlanet(1));
+            updateBrowseArrows();
+        }
 
         btnTheme.setOnClickListener(v -> showThemePicker());
 
@@ -596,6 +637,29 @@ public class PlanetDetailActivity extends Activity {
 
         infoParams.setMargins(dp(18), dp(4), dp(18), dp(16));
 
+        // 핀 안내 상자 위: 공개 설정(내 행성) / 좋아요(모두)
+        LinearLayout reactionRow = new LinearLayout(this);
+        reactionRow.setGravity(Gravity.CENTER_VERTICAL);
+        reactionRow.setPadding(dp(18), dp(4), dp(18), dp(2));
+
+        btnPublish = makeText("비공개", 13, C_ACCENT, true);
+        btnPublish.setGravity(Gravity.CENTER);
+        btnPublish.setPadding(dp(12), 0, dp(12), 0);
+        btnPublish.setBackground(rounded(C_ACCENT_SOFT, C_ACCENT_LINE, 1, 18));
+        btnPublish.setOnClickListener(v -> togglePublication());
+        if (browseMode) btnPublish.setVisibility(View.GONE);
+        reactionRow.addView(btnPublish, new LinearLayout.LayoutParams(-2, dp(36)));
+
+        reactionRow.addView(new View(this), new LinearLayout.LayoutParams(0, 1, 1f));
+
+        btnLike = makeText("♡ 0", 17, 0xFFE06C93, true);
+        btnLike.setGravity(Gravity.CENTER);
+        btnLike.setPadding(dp(12), 0, dp(12), 0);
+        btnLike.setBackground(rounded(C_CARD, C_LINE, 1, 18));
+        btnLike.setOnClickListener(v -> toggleLike());
+        reactionRow.addView(btnLike, new LinearLayout.LayoutParams(-2, dp(38)));
+
+        planetPage.addView(reactionRow, new LinearLayout.LayoutParams(-1, dp(44)));
         planetPage.addView(info, infoParams);
 
         infoOpen.setOnClickListener(v -> {
@@ -668,7 +732,7 @@ public class PlanetDetailActivity extends Activity {
         if (planetView == null) return;
 
         // 이 행성에 골라 둔 테마 적용
-        planetView.setTheme(loadTheme(currentPlanetId));
+        planetView.setTheme(currentThemeIndex);
 
         textYear.setText(PlanetMonth.label(planetMonthKey));
 
@@ -869,6 +933,7 @@ public class PlanetDetailActivity extends Activity {
                             .document(planetId);
 
                     startPlanetListener();
+                    startLikesListener();
                     loadPlanetList();
                 })
                 .addOnFailureListener(this, error -> {
@@ -943,15 +1008,110 @@ public class PlanetDetailActivity extends Activity {
 
     private void movePlanet(int step) {
 
+        if (browseMode) {
+            int index = planetRef == null ? -1 : browsePaths.indexOf(planetRef.getPath());
+            int target = index + step;
+            if (index < 0 || target < 0 || target >= browsePaths.size()) return;
+            animateBrowseTo(browsePaths.get(target), step);
+            return;
+        }
+
         int index = planetIds.indexOf(currentPlanetId);
-
         if (index < 0) return;
-
         int target = index + step;
-
         if (target < 0 || target >= planetIds.size()) return;
-
         switchPlanet(planetIds.get(target));
+    }
+
+    // 화살표 클릭 또는 좌우 스와이프 시 행성이 가로로 넘어가는 연출
+    private void animateBrowseTo(String path, int step) {
+        if (browseAnimating || planetView == null) return;
+        browseAnimating = true;
+        planetView.animate().cancel();
+        planetView.animate()
+                .translationX(-step * dp(70))
+                .alpha(0.20f)
+                .setDuration(140)
+                .withEndAction(() -> {
+                    switchBrowsePlanet(path);
+                    planetView.setTranslationX(step * dp(70));
+                    planetView.animate()
+                            .translationX(0f)
+                            .alpha(1f)
+                            .setDuration(170)
+                            .withEndAction(() -> browseAnimating = false)
+                            .start();
+                }).start();
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(MotionEvent event) {
+        if (browseMode && planetPage != null
+                && planetPage.getVisibility() == View.VISIBLE) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_DOWN:
+                    browseDownX = event.getX();
+                    browseDownY = event.getY();
+                    break;
+                case MotionEvent.ACTION_UP:
+                    float dx = event.getX() - browseDownX;
+                    float dy = event.getY() - browseDownY;
+                    if (Math.abs(dx) > dp(80)
+                            && Math.abs(dx) > Math.abs(dy) * 1.4f) {
+                        movePlanet(dx > 0 ? -1 : 1);
+                        return true;
+                    }
+                    break;
+            }
+        }
+        return super.dispatchTouchEvent(event);
+    }
+
+    private void switchBrowsePlanet(String path) {
+        // 정상적인 galaxies/{galaxyId}/planets/{planetId} 경로만 사용
+        String[] parts = path.split("/");
+        if (parts.length != 4 || !"galaxies".equals(parts[0])
+                || !"planets".equals(parts[2])) {
+            message("올바르지 않은 행성 경로입니다.");
+            finish();
+            return;
+        }
+
+        if (planetListener != null) { planetListener.remove(); planetListener = null; }
+        stopLikesListener();
+        galaxyId = parts[1];
+        currentPlanetId = parts[3];
+        planetRef = db.document(path);
+        photos.clear();
+        selectedIndex = -1;
+        selectedDate = "";
+        selectedPin = null;
+        currentThemeIndex = 0;
+        adapter.reload();
+        planetView.setPins(new ArrayList<>());
+        topTitle.setText("행성 둘러보기");
+        updateBrowseArrows();
+        startPlanetListener();
+        startLikesListener();
+    }
+
+    private TextView addBrowseArrow(FrameLayout frame, String arrow, int side) {
+        TextView button = makeText(arrow, 28, C_ACCENT, true);
+        button.setGravity(Gravity.CENTER);
+        button.setBackground(rounded(C_CARD, C_LINE, 1, 40));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(42), dp(42));
+        lp.gravity = Gravity.CENTER_VERTICAL | side;
+        if (side == Gravity.START) lp.leftMargin = dp(8);
+        else lp.rightMargin = dp(8);
+        frame.addView(button, lp);
+        return button;
+    }
+
+    private void updateBrowseArrows() {
+        if (!browseMode || browsePrev == null || browseNext == null) return;
+        int index = planetRef == null ? -1 : browsePaths.indexOf(planetRef.getPath());
+        browsePrev.setAlpha(index > 0 ? 1f : 0.25f);
+        browseNext.setAlpha(index >= 0 && index < browsePaths.size() - 1 ? 1f : 0.25f);
     }
 
     private void switchPlanet(String planetId) {
@@ -962,6 +1122,7 @@ public class PlanetDetailActivity extends Activity {
         }
 
         currentPlanetId = planetId;
+        stopLikesListener();
 
         photos.clear();
         selectedIndex = -1;
@@ -978,6 +1139,7 @@ public class PlanetDetailActivity extends Activity {
 
         updatePlanetArrows();
         startPlanetListener();
+        startLikesListener();
     }
 
     private void startPlanetListener() {
@@ -1005,6 +1167,22 @@ public class PlanetDetailActivity extends Activity {
                         return;
                     }
 
+                    if (browseMode && !Boolean.TRUE.equals(snapshot.getBoolean("isPublic"))) {
+                        message("비공개로 전환된 행성입니다.");
+                        finish();
+                        return;
+                    }
+                    publicPlanet = Boolean.TRUE.equals(snapshot.getBoolean("isPublic"));
+                    if (browseMode) {
+                        String name = snapshot.getString("publicGalaxyName");
+                        topTitle.setText((name == null || name.trim().isEmpty())
+                                ? "다른 은하계의 행성" : name + " 은하계");
+                    }
+                    if (btnPublish != null) btnPublish.setText(publicPlanet ? "공개 중" : "비공개");
+                    Long idx = snapshot.getLong("themeIndex");
+                    currentThemeIndex = idx != null
+                            ? (int) (long) idx
+                            : (browseMode ? 0 : loadTheme(currentPlanetId));
                     updatePhotos(snapshot);
                 }
         );
@@ -1500,7 +1678,12 @@ public class PlanetDetailActivity extends Activity {
             tile.setOnClickListener(v -> {
 
                 saveTheme(planetId, index);
+                currentThemeIndex = index;
                 planetView.setTheme(index);
+                if (planetRef != null && !browseMode) {
+                    planetRef.update("themeIndex", index)
+                            .addOnFailureListener(this, e -> message("테마 저장 실패: " + e.getMessage()));
+                }
 
                 if (holder[0] != null) {
                     holder[0].dismiss();
@@ -2010,6 +2193,112 @@ public class PlanetDetailActivity extends Activity {
     }
 
     // ==========================================
+    // 좋아요 / 행성 공개
+    // ==========================================
+
+    private void stopLikesListener() {
+        if (likesListener != null) {
+            likesListener.remove();
+            likesListener = null;
+        }
+        likeCount = 0;
+        liked = false;
+        refreshLikeButton();
+    }
+
+    private void startLikesListener() {
+        if (planetRef == null || likesListener != null) return;
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) return;
+        final String path = planetRef.getPath();
+        likesListener = planetRef.collection("likes").addSnapshotListener((snap, error) -> {
+            if (planetRef == null || !path.equals(planetRef.getPath())) return;
+            if (error != null) {
+                android.util.Log.e("StarRingLikes", "좋아요 조회 실패", error);
+                return;
+            }
+            if (snap == null) return;
+            likeCount = snap.size();
+            liked = false;
+            for (DocumentSnapshot doc : snap.getDocuments()) {
+                if (user.getUid().equals(doc.getId())) { liked = true; break; }
+            }
+            refreshLikeButton();
+        });
+    }
+
+    private void refreshLikeButton() {
+        if (btnLike == null) return;
+        btnLike.setText((liked ? "♥ " : "♡ ") + likeCount);
+        btnLike.setEnabled(planetRef != null && !likeBusy);
+        btnLike.setAlpha(likeBusy ? 0.5f : 1f);
+    }
+
+    private void toggleLike() {
+        if (planetRef == null || likeBusy) return;
+        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+        if (user == null) { message("로그인이 필요합니다."); return; }
+        likeBusy = true;
+        refreshLikeButton();
+        DocumentReference ref = planetRef.collection("likes").document(user.getUid());
+        com.google.android.gms.tasks.Task<Void> task;
+        if (liked) task = ref.delete();
+        else task = ref.set(Collections.singletonMap("createdAt", FieldValue.serverTimestamp()));
+        task.addOnSuccessListener(this, unused -> { likeBusy = false; refreshLikeButton(); })
+                .addOnFailureListener(this, e -> {
+                    likeBusy = false;
+                    refreshLikeButton();
+                    message("좋아요 처리 실패: " + e.getMessage());
+                });
+    }
+
+    private void togglePublication() {
+        if (browseMode || planetRef == null) return;
+        if (publicPlanet) {
+            updatePublication(false);
+        } else {
+            new AlertDialog.Builder(this, R.style.StarRing_LightDialog)
+                    .setTitle("다른 은하계에 공개")
+                    .setMessage("이 행성의 사진, 날짜, 설명이 다른 Star Ring 사용자에게 공개됩니다. 공개할까요?")
+                    .setNegativeButton("취소", null)
+                    .setPositiveButton("공개", (dialog, which) -> updatePublication(true))
+                    .show();
+        }
+    }
+
+    private void updatePublication(boolean publish) {
+        if (planetRef == null || galaxyId == null) return;
+        if (btnPublish != null) btnPublish.setEnabled(false);
+        final DocumentReference targetRef = planetRef;
+        db.collection("galaxies").document(galaxyId).get()
+                .addOnSuccessListener(this, galaxyDoc -> {
+                    String name = galaxyDoc.getString("name");
+                    if (name == null || name.trim().isEmpty()) {
+                        if (btnPublish != null) btnPublish.setEnabled(true);
+                        message("은하계 이름을 찾을 수 없습니다.");
+                        return;
+                    }
+                    Map<String, Object> changes = new HashMap<>();
+                    changes.put("isPublic", publish);
+                    changes.put("publicGalaxyName", name);
+                    changes.put("themeIndex", currentThemeIndex);
+                    targetRef.update(changes)
+                            .addOnSuccessListener(this, unused -> {
+                                if (btnPublish != null) btnPublish.setEnabled(true);
+                                message(publish ? "다른 은하계에 공개했어요." : "행성을 비공개로 전환했어요.");
+                            })
+                            .addOnFailureListener(this, e -> {
+                                if (btnPublish != null) btnPublish.setEnabled(true);
+                                message("공개 설정 실패: " + e.getMessage());
+                            });
+                })
+                .addOnFailureListener(this, e -> {
+                    if (btnPublish != null) btnPublish.setEnabled(true);
+                    message("은하계 조회 실패: " + e.getMessage());
+                });
+    }
+
+    // ==========================================
     // 생명주기
     // ==========================================
 
@@ -2017,9 +2306,9 @@ public class PlanetDetailActivity extends Activity {
     protected void onStart() {
         super.onStart();
         startPlanetListener();
-
+        startLikesListener();
         // 다른 화면에서 행성이 새로 생겼을 수 있으니 목록 갱신
-        loadPlanetList();
+        if (!browseMode) loadPlanetList();
     }
 
     @Override
@@ -2031,6 +2320,7 @@ public class PlanetDetailActivity extends Activity {
     @Override
     protected void onStop() {
 
+        stopLikesListener();
         if (planetListener != null) {
             planetListener.remove();
             planetListener = null;
