@@ -390,12 +390,31 @@ public class GalaxyRenameActivity extends Activity {
         // name 필드만 변경
         galaxyRef.update("name", newName)
                 .addOnSuccessListener(this, unused -> {
-
-                    saving = false;
-
-                    message("은하계 이름이 변경되었습니다.");
-
-                    finish();
+                    // 공개된 행성에는 은하계 이름을 복사해서 보여주므로 함께 갱신
+                    galaxyRef.collection("planets")
+                            .whereEqualTo("isPublic", true)
+                            .get()
+                            .addOnSuccessListener(this, snapshot -> {
+                                com.google.firebase.firestore.WriteBatch batch = db.batch();
+                                for (com.google.firebase.firestore.DocumentSnapshot doc
+                                        : snapshot.getDocuments()) {
+                                    batch.update(doc.getReference(), "publicGalaxyName", newName);
+                                }
+                                batch.commit().addOnCompleteListener(this, task -> {
+                                    saving = false;
+                                    if (task.isSuccessful()) {
+                                        message("은하계 이름이 변경되었습니다.");
+                                    } else {
+                                        message("이름은 변경됐지만 공개 행성 표시는 갱신되지 않았어요.");
+                                    }
+                                    finish();
+                                });
+                            })
+                            .addOnFailureListener(this, e -> {
+                                saving = false;
+                                message("이름은 변경됐지만 공개 행성 표시를 확인하지 못했어요.");
+                                finish();
+                            });
                 })
                 .addOnFailureListener(this, e -> {
 

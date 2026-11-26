@@ -51,9 +51,6 @@ service cloud.firestore {
       && code.matches('^[A-HJ-NP-Z2-9]{6}$');
     }
 
-    // 초대코드 검증
-    // 존재 여부, 소유자, 은하계, 만료시간,
-    // 트랜잭션 내 코드 삭제까지 확인
     function validInviteForJoin(code, galaxyId, ownerUid) {
       return validInviteCode(code)
       && exists(invitePath(code))
@@ -67,7 +64,6 @@ service cloud.firestore {
       && !existsAfter(invitePath(code));
     }
 
-    // 은하계의 정상 구성원인지 확인
     function isActiveGalaxyMember(galaxyId) {
       return signedIn()
       && exists(galaxyPath(galaxyId))
@@ -84,7 +80,6 @@ service cloud.firestore {
 
     match /users/{uid} {
 
-      // 본인 또는 현재 같은 은하계의 구성원만 조회
       allow get: if signedIn() && (
         request.auth.uid == uid
         ||
@@ -118,6 +113,7 @@ service cloud.firestore {
       ])
 
       && request.resource.data.email is string
+
       && request.resource.data.email
       == request.auth.token.email
 
@@ -126,7 +122,9 @@ service cloud.firestore {
       )
 
       && request.resource.data.galaxyId == null
+
       && request.resource.data.createdAt == request.time;
+
 
       // 회원 정보 수정
       allow update: if signedIn()
@@ -163,34 +161,28 @@ service cloud.firestore {
       allow delete: if false;
 
 
-      // ==========================================
-      // 은하계 소멸 시 상대방의 연동도 해제
-      // ==========================================
+      // ==================================
+      // 은하계 소멸 시 상대방 연동 해제
+      // ==================================
 
       allow update: if signedIn()
 
-      // 상대방 문서만 대상
       && request.auth.uid != uid
 
-      // 기존 은하계 연결이 있어야 함
       && resource.data.galaxyId is string
 
-      // galaxyId만 null로 변경 가능
       && request.resource.data.galaxyId == null
 
       && onlyChanges(['galaxyId'])
 
-      // 기존 은하계가 실제로 존재해야 함
       && exists(
         galaxyPath(resource.data.galaxyId)
       )
 
-      // 소멸 전에는 활성 은하계
       && get(
         galaxyPath(resource.data.galaxyId)
       ).data.status == 'active'
 
-      // 해당 은하계에 두 사람이 소속되어 있어야 함
       && get(
         galaxyPath(resource.data.galaxyId)
       ).data.memberUids.size() == 2
@@ -203,19 +195,16 @@ service cloud.firestore {
         galaxyPath(resource.data.galaxyId)
       ).data.memberUids
 
-      // 같은 트랜잭션에서 은하계가 해제되어야 함
       && getAfter(
         galaxyPath(resource.data.galaxyId)
       ).data.status == 'unlinked'
 
-      // 구성원 목록은 그대로 유지
       && getAfter(
         galaxyPath(resource.data.galaxyId)
       ).data.memberUids == get(
         galaxyPath(resource.data.galaxyId)
       ).data.memberUids
 
-      // 실제 소멸 시각 기록 확인
       && getAfter(
         galaxyPath(resource.data.galaxyId)
       ).data.unlinkedAt == request.time;
@@ -229,22 +218,16 @@ service cloud.firestore {
 
     match /galaxies/{galaxyId} {
 
-      // 현재 구성원만 조회 가능
-      // 연동 해제된 은하계는 조회 불가
       allow get: if signedIn()
       && resource.data.status != 'unlinked'
       && request.auth.uid in resource.data.memberUids;
 
-      // 구성원 본인의 은하계만 목록 조회
       allow list: if signedIn()
       && resource.data.status != 'unlinked'
       && request.auth.uid in resource.data.memberUids;
 
 
-      // ----------------------------------
       // 신규 은하계 생성
-      // ----------------------------------
-
       allow create: if signedIn()
 
       && request.resource.data.keys().hasOnly([
@@ -290,13 +273,13 @@ service cloud.firestore {
       )
 
       && request.resource.data.bornAt == null
+
       && request.resource.data.createdAt == request.time;
 
 
-      // ----------------------------------
-      // 초대코드 입력 및 커플 합류
-      // waiting -> naming
-      // ----------------------------------
+      // ==================================
+      // 초대코드로 커플 합류
+      // ==================================
 
       allow update: if signedIn()
 
@@ -324,7 +307,6 @@ service cloud.firestore {
         'inviteCode'
       ])
 
-      // 실제 초대코드 문서의 정보 검증
       && validInviteForJoin(
         resource.data.inviteCode,
         galaxyId,
@@ -332,11 +314,7 @@ service cloud.firestore {
       );
 
 
-      // ----------------------------------
       // 은하계 활성화
-      // naming -> active
-      // ----------------------------------
-
       allow update: if signedIn()
 
       && request.auth.uid in resource.data.memberUids
@@ -363,11 +341,7 @@ service cloud.firestore {
       ]);
 
 
-      // ----------------------------------
       // 기존 은하계의 만난 날짜 추가
-      // 최초 한 번만 가능
-      // ----------------------------------
-
       allow update: if signedIn()
 
       && request.auth.uid in resource.data.memberUids
@@ -388,10 +362,7 @@ service cloud.firestore {
       ]);
 
 
-      // ----------------------------------
       // 초대코드 재발급
-      // ----------------------------------
-
       allow update: if signedIn()
 
       && request.auth.uid == resource.data.ownerUid
@@ -409,7 +380,6 @@ service cloud.firestore {
         'inviteCode'
       ])
 
-      // 새 초대코드 문서가 있어야 함
       && existsAfter(
         invitePath(request.resource.data.inviteCode)
       )
@@ -426,16 +396,12 @@ service cloud.firestore {
         invitePath(request.resource.data.inviteCode)
       ).data.createdAt == request.time
 
-      // 기존 초대코드는 삭제되어야 함
       && !existsAfter(
         invitePath(resource.data.inviteCode)
       );
 
 
-      // ----------------------------------
       // 커플 연동 해제
-      // ----------------------------------
-
       allow update: if signedIn()
 
       && request.auth.uid in resource.data.memberUids
@@ -461,45 +427,32 @@ service cloud.firestore {
 
       allow update: if signedIn()
 
-      // 활성화된 은하계여야 함
       && resource.data.status == 'active'
 
-      // 실제 은하계 구성원만 변경 가능
       && request.auth.uid in
       resource.data.memberUids
 
-      // 본인 계정도 이 은하계에 연결되어 있어야 함
       && get(
         /databases/$(database)/documents/users/$(request.auth.uid)
       ).data.galaxyId == galaxyId
 
-      // name 필드만 변경 가능
       && onlyChanges(['name'])
 
-      // 은하계 이름 1~20자 검증
       && validGalaxyName(
         request.resource.data.name
       )
 
-      // 앞뒤 공백 제거된 이름만 허용
-      && request.resource.data.name
-      == request.resource.data.name.trim()
-
-      // 기존 이름과 달라야 함
       && request.resource.data.name
       != resource.data.name;
 
 
-
-      // ----------------------------------
       // 대기 중인 은하계 생성 취소
-      // ----------------------------------
-
       allow delete: if signedIn()
 
       && request.auth.uid == resource.data.ownerUid
 
       && resource.data.status == 'waiting';
+
     }
 
 
@@ -509,17 +462,12 @@ service cloud.firestore {
 
     match /inviteCodes/{code} {
 
-      // 코드를 알고 있는 로그인 사용자만
-      // 해당 문서 ID로 직접 조회 가능
       allow get: if signedIn();
 
       allow list: if false;
 
 
-      // ----------------------------------
       // 초대코드 생성
-      // ----------------------------------
-
       allow create: if signedIn()
 
       && validInviteCode(code)
@@ -559,18 +507,13 @@ service cloud.firestore {
       allow update: if false;
 
 
-      // ----------------------------------
       // 초대코드 삭제 및 무효화
-      // ----------------------------------
-
       allow delete: if signedIn()
       && (
-        // 코드 소유자가 직접 삭제
         request.auth.uid == resource.data.ownerUid
 
         ||
 
-        // 커플 합류 과정에서 코드 소모
         (
           resource.data.galaxyId is string
 
@@ -628,7 +571,6 @@ service cloud.firestore {
       return /databases/$(database)/documents/courtPosts/$(postId)/lessons/$(uid);
     }
 
-    // 화해 기록은 현재 연동된 커플만 접근
     function canAccessCourtLessons(postId) {
       return signedIn()
 
@@ -663,10 +605,7 @@ service cloud.firestore {
       && request.query.limit <= 50;
 
 
-      // ----------------------------------
       // 재판 생성
-      // ----------------------------------
-
       allow create: if signedIn()
 
       && request.resource.data.keys().hasOnly([
@@ -725,35 +664,28 @@ service cloud.firestore {
         galaxyPath(request.resource.data.galaxyId)
       ).data.name
 
-      // 제목 검사
       && request.resource.data.title is string
       && request.resource.data.title.size() >= 1
       && request.resource.data.title.size() <= 100
 
-      // 상황 설명 검사
       && request.resource.data.situation is string
       && request.resource.data.situation.size() >= 1
       && request.resource.data.situation.size() <= 2000
 
-      // 입장 A 검사
       && request.resource.data.positionA is string
       && request.resource.data.positionA.size() >= 1
       && request.resource.data.positionA.size() <= 1000
 
-      // 입장 B 검사
       && request.resource.data.positionB is string
       && request.resource.data.positionB.size() >= 1
       && request.resource.data.positionB.size() <= 1000
 
-      // 초기 투표 수
       && request.resource.data.votesA == 0
       && request.resource.data.votesB == 0
 
-      // 최초 생성 상태
       && request.resource.data.resolvedAt == null
       && request.resource.data.createdAt == request.time
 
-      // 투표 마감은 약 24시간 후
       && request.resource.data.deadlineAt is timestamp
 
       && request.resource.data.deadlineAt >
@@ -763,9 +695,9 @@ service cloud.firestore {
       request.time + duration.value(25, 'h');
 
 
-      // ----------------------------------
+      // ==================================
       // 투표 집계 및 화해 완료
-      // ----------------------------------
+      // ==================================
 
       allow update: if signedIn()
       && (
@@ -783,18 +715,15 @@ service cloud.firestore {
             'votesB'
           ])
 
-          // 중복 투표 방지
           && !exists(
             courtVotePath(postId, request.auth.uid)
           )
 
-          // 투표 기록이 함께 생성되어야 함
           && existsAfter(
             courtVotePath(postId, request.auth.uid)
           )
 
           && (
-            // A 선택
             (
               getAfter(
                 courtVotePath(postId, request.auth.uid)
@@ -809,7 +738,6 @@ service cloud.firestore {
 
             ||
 
-            // B 선택
             (
               getAfter(
                 courtVotePath(postId, request.auth.uid)
@@ -826,7 +754,7 @@ service cloud.firestore {
 
         ||
 
-        // 커플 양쪽이 배운 점을 작성하면 화해
+        // 화해 완료
         (
           request.auth.uid in resource.data.memberUids
 
@@ -875,7 +803,6 @@ service cloud.firestore {
 
       match /votes/{voterUid} {
 
-        // 본인 투표만 조회
         allow get: if signedIn()
         && request.auth.uid == voterUid;
 
@@ -901,23 +828,18 @@ service cloud.firestore {
 
         && request.resource.data.createdAt == request.time
 
-        // 재판 당사자는 투표 불가
         && !(request.auth.uid in get(
           courtPostPath(postId)
         ).data.memberUids)
 
-        // 화해 후 투표 불가
         && get(
           courtPostPath(postId)
         ).data.resolvedAt == null
 
-        // 마감 후 투표 불가
         && request.time <
         get(courtPostPath(postId)).data.deadlineAt
 
-        // 투표 기록과 집계가 일치해야 함
         && (
-          // A 투표
           (
             request.resource.data.choice == 1
 
@@ -938,7 +860,6 @@ service cloud.firestore {
 
           ||
 
-          // B 투표
           (
             request.resource.data.choice == 2
 
@@ -958,7 +879,6 @@ service cloud.firestore {
           )
         );
 
-        // 투표 기록은 생성 후 수정·삭제 불가
         allow update, delete: if false;
 
       }
@@ -970,12 +890,10 @@ service cloud.firestore {
 
       match /lessons/{memberUid} {
 
-        // 현재 연동된 커플만 조회
         allow get, list: if
         canAccessCourtLessons(postId);
 
 
-        // 본인의 배운 점만 최초 한 번 작성
         allow create: if signedIn()
 
         && request.auth.uid == memberUid
@@ -1006,10 +924,9 @@ service cloud.firestore {
 
         allow update, delete: if false;
 
+      }
 
-      } // lessons 규칙 종료
-
-    } // courtPosts 규칙 종료
+    }
 
 
     // ==================================
@@ -1018,13 +935,15 @@ service cloud.firestore {
 
     match /galaxies/{galaxyId}/planets/{planetId} {
 
+      // 해당 은하계 구성원의 행성 조회
       allow get, list: if signedIn()
       && exists(galaxyPath(galaxyId))
       && get(galaxyPath(galaxyId)).data.status == 'active'
       && request.auth.uid in
       get(galaxyPath(galaxyId)).data.memberUids;
 
-      // 활성 은하계 구성원만 행성 생성 가능
+
+      // 행성 생성
       allow create: if signedIn()
 
       && request.auth.uid in
@@ -1048,8 +967,8 @@ service cloud.firestore {
         'createdAt'
       ])
 
-      && request.resource.data.createdBy == request.auth.uid
-
+      && request.resource.data.createdBy
+      == request.auth.uid
 
       && request.resource.data.planetAsset in [
         'planet_01',
@@ -1059,7 +978,6 @@ service cloud.firestore {
         'planet_05',
         'planet_06'
       ]
-
 
       && request.resource.data.photos is list
 
@@ -1074,9 +992,11 @@ service cloud.firestore {
 
       && request.resource.data.createdAt == request.time;
 
-      // 행성 수정 및 삭제는 추후 구현
 
+      // ==================================
       // 행성 사진 정보 수정 및 사진 추가
+      // ==================================
+
       allow update: if signedIn()
 
       && exists(galaxyPath(galaxyId))
@@ -1086,7 +1006,6 @@ service cloud.firestore {
       && request.auth.uid in
       get(galaxyPath(galaxyId)).data.memberUids
 
-      // 수정 가능한 최상위 필드 제한
       && onlyChanges([
         'photos',
         'photoCount',
@@ -1094,17 +1013,18 @@ service cloud.firestore {
       ])
 
       && resource.data.photos is list
+
       && request.resource.data.photos is list
+
       && request.resource.data.photoCount is int
 
-      // 사진 개수 검증
       && request.resource.data.photoCount
       == request.resource.data.photos.size()
 
       && request.resource.data.photoCount >= 1
+
       && request.resource.data.photoCount <= 100
 
-      // 기존 사진 설명·날짜 수정 또는 새 사진 추가
       && (
         (
           request.resource.data.photoCount
@@ -1118,7 +1038,6 @@ service cloud.firestore {
           request.resource.data.photoCount
           > resource.data.photoCount
 
-          // 추가할 때 기존 사진 기록 유지
           && request.resource.data.photos.hasAll(
             resource.data.photos
           )
@@ -1127,8 +1046,170 @@ service cloud.firestore {
 
       && request.resource.data.updatedAt == request.time;
 
+
+      // ==================================
+      // 행성 공개 / 비공개 설정
+      // ==================================
+
+      allow update: if signedIn()
+
+      && exists(galaxyPath(galaxyId))
+
+      && get(galaxyPath(galaxyId)).data.status == 'active'
+
+      && request.auth.uid in
+      get(galaxyPath(galaxyId)).data.memberUids
+
+      && onlyChanges([
+        'isPublic',
+        'publicGalaxyName',
+        'themeIndex'
+      ])
+
+      && request.resource.data.isPublic is bool
+
+      && request.resource.data.publicGalaxyName is string
+
+      && validGalaxyName(
+        request.resource.data.publicGalaxyName
+      )
+
+      && request.resource.data.themeIndex is int
+
+      && request.resource.data.themeIndex >= 0
+
+      && request.resource.data.themeIndex <= 5
+
+      && (
+        request.resource.data.isPublic == false
+        ||
+        request.resource.data.publicGalaxyName
+        == get(galaxyPath(galaxyId)).data.name
+      );
+
+
+      // ==================================
+      // 행성 테마 변경
+      // ==================================
+
+      allow update: if signedIn()
+
+      && get(galaxyPath(galaxyId)).data.status == 'active'
+
+      && request.auth.uid in
+      get(galaxyPath(galaxyId)).data.memberUids
+
+      && onlyChanges(['themeIndex'])
+
+      && request.resource.data.themeIndex is int
+
+      && request.resource.data.themeIndex >= 0
+
+      && request.resource.data.themeIndex <= 5;
+
+
+      // ==================================
+      // 은하계 이름 변경 시 공개 행성 이름 동기화
+      // ==================================
+
+      allow update: if signedIn()
+
+      && get(galaxyPath(galaxyId)).data.status == 'active'
+
+      && request.auth.uid in
+      get(galaxyPath(galaxyId)).data.memberUids
+
+      && resource.data.get('isPublic', false) == true
+
+      && onlyChanges(['publicGalaxyName'])
+
+      && request.resource.data.publicGalaxyName
+      == get(galaxyPath(galaxyId)).data.name;
+
+
       allow delete: if false;
 
+    }
+
+
+    // ==================================
+    // 8-1. 공개 행성 둘러보기
+    // ==================================
+
+    // 공개 행성만 외부 계정이 조회 가능
+    // 기존 행성은 isPublic 필드가 없으므로 비공개
+
+    match /{path=**}/planets/{planetId} {
+
+      allow get, list: if signedIn()
+
+      && resource.data.get(
+        'isPublic',
+        false
+      ) == true;
+
+    }
+
+
+    // ==================================
+    // 8-2. 행성 좋아요
+    // ==================================
+
+    match /galaxies/{galaxyId}/planets/{planetId}/likes/{likerUid} {
+
+      function canSeeLikedPlanet() {
+
+        return signedIn()
+
+        && exists(galaxyPath(galaxyId))
+
+        && get(galaxyPath(galaxyId)).data.status
+        == 'active'
+
+        && exists(
+          /databases/$(database)/documents/galaxies/$(galaxyId)/planets/$(planetId)
+        )
+
+        && (
+          request.auth.uid in
+          get(galaxyPath(galaxyId)).data.memberUids
+
+          ||
+
+          get(
+            /databases/$(database)/documents/galaxies/$(galaxyId)/planets/$(planetId)
+          ).data.get('isPublic', false) == true
+        );
+      }
+
+      // 좋아요 조회
+      allow get, list: if canSeeLikedPlanet();
+
+
+      // 좋아요 등록
+      allow create: if canSeeLikedPlanet()
+
+      && request.auth.uid == likerUid
+
+      && request.resource.data.keys().hasOnly([
+        'createdAt'
+      ])
+
+      && request.resource.data.keys().hasAll([
+        'createdAt'
+      ])
+
+      && request.resource.data.createdAt == request.time;
+
+
+      // 본인 좋아요 취소
+      allow delete: if canSeeLikedPlanet()
+
+      && request.auth.uid == likerUid;
+
+
+      // 좋아요 기록 직접 수정 불가
+      allow update: if false;
 
     }
 
@@ -1138,27 +1219,41 @@ service cloud.firestore {
     // ==================================
 
     match /planets/{document=**} {
+
       allow read, write: if signedIn();
+
     }
 
     match /blackholes/{document=**} {
+
       allow read, write: if signedIn();
+
     }
 
     match /trials/{document=**} {
+
       allow read, write: if signedIn();
+
     }
 
     match /messages/{document=**} {
+
       allow read, write: if signedIn();
+
     }
 
-    // Firebase 연결 테스트용
+
+    // ==================================
+    // Firebase 연결 테스트
+    // ==================================
+
     match /connection_tests/{uid} {
+
       allow read, write: if signedIn()
+
       && request.auth.uid == uid;
+
     }
 
-  } // documents 종료
-
-} // service 종료
+  }
+}
