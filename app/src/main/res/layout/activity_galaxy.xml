@@ -20,6 +20,27 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent"/>
 
+    <!-- 우측 상단 은하계 이름 -->
+    <TextView
+        android:id="@+id/textGalaxyName"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:layout_marginTop="30dp"
+        android:layout_marginEnd="16dp"
+        android:maxWidth="170dp"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="7dp"
+        android:paddingBottom="7dp"
+        android:background="@drawable/bg_galaxy_name"
+        android:textColor="#F4E8FF"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:visibility="gone"/>
+
     <!-- 태양계 메뉴가 열리면 어두워지는 영역 -->
     <View
         android:id="@+id/solarDimOverlay"

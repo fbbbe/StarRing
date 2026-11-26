@@ -519,8 +519,31 @@ public class PlanetDetailActivity extends Activity {
 
         planetView = new PlanetWorldView(this);
 
-        planetPage.addView(
+        // 행성 위에 "테마" 버튼을 얹기 위해 FrameLayout 으로 감쌈
+        FrameLayout planetFrame = new FrameLayout(this);
+
+        planetFrame.addView(
                 planetView,
+                new FrameLayout.LayoutParams(-1, -1)
+        );
+
+        TextView btnTheme = makeText("테마", 13, C_ACCENT, true);
+        btnTheme.setGravity(Gravity.CENTER);
+        btnTheme.setPadding(dp(14), 0, dp(14), 0);
+        btnTheme.setBackground(rounded(C_CARD, C_LINE, 1, 18));
+
+        FrameLayout.LayoutParams themeParams =
+                new FrameLayout.LayoutParams(-2, dp(34));
+
+        themeParams.gravity = Gravity.TOP | Gravity.END;
+        themeParams.setMargins(0, dp(6), dp(16), 0);
+
+        planetFrame.addView(btnTheme, themeParams);
+
+        btnTheme.setOnClickListener(v -> showThemePicker());
+
+        planetPage.addView(
+                planetFrame,
                 new LinearLayout.LayoutParams(-1, 0, 1f)
         );
 
@@ -643,6 +666,9 @@ public class PlanetDetailActivity extends Activity {
     private void refreshPlanetPage() {
 
         if (planetView == null) return;
+
+        // 이 행성에 골라 둔 테마 적용
+        planetView.setTheme(loadTheme(currentPlanetId));
 
         textYear.setText(PlanetMonth.label(planetMonthKey));
 
@@ -1363,6 +1389,151 @@ public class PlanetDetailActivity extends Activity {
                     dialog
             );
         });
+    }
+
+    // ==========================================
+    // 행성 테마 (이 폰에만 저장)
+    // ==========================================
+
+    private static final String THEME_PREFS = "starring_planet_theme";
+
+    private int loadTheme(String planetId) {
+
+        if (planetId == null) {
+            return 0;
+        }
+
+        try {
+            return getSharedPreferences(THEME_PREFS, MODE_PRIVATE)
+                    .getInt(planetId, 0);
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    private void saveTheme(String planetId, int index) {
+
+        if (planetId == null) {
+            return;
+        }
+
+        try {
+            getSharedPreferences(THEME_PREFS, MODE_PRIVATE)
+                    .edit()
+                    .putInt(planetId, index)
+                    .apply();
+        } catch (RuntimeException ignored) {
+        }
+    }
+
+    /** 테마를 고르는 창: 동그란 미리보기를 누르면 바로 적용 */
+    private void showThemePicker() {
+
+        if (currentPlanetId == null || planetView == null) {
+            return;
+        }
+
+        final String planetId = currentPlanetId;
+        final int current = loadTheme(planetId);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+        content.setPadding(dp(14), dp(8), dp(14), dp(4));
+
+        final AlertDialog[] holder = new AlertDialog[1];
+
+        final int columns = 3;
+
+        LinearLayout row = null;
+
+        for (int i = 0; i < PlanetWorldView.THEMES.length; i++) {
+
+            if (i % columns == 0) {
+
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+
+                content.addView(
+                        row,
+                        new LinearLayout.LayoutParams(-1, -2)
+                );
+            }
+
+            final int index = i;
+            PlanetWorldView.Theme t = PlanetWorldView.THEMES[i];
+
+            LinearLayout tile = new LinearLayout(this);
+            tile.setOrientation(LinearLayout.VERTICAL);
+            tile.setGravity(Gravity.CENTER_HORIZONTAL);
+            tile.setPadding(dp(4), dp(10), dp(4), dp(10));
+
+            GradientDrawable ball = new GradientDrawable();
+            ball.setShape(GradientDrawable.OVAL);
+            ball.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+            ball.setGradientRadius(dp(44));
+            ball.setGradientCenter(0.35f, 0.35f);
+            ball.setColors(t.planet);
+
+            if (i == current) {
+                ball.setStroke(dp(3), C_ACCENT);
+            }
+
+            View preview = new View(this);
+            preview.setBackground(ball);
+
+            tile.addView(
+                    preview,
+                    new LinearLayout.LayoutParams(dp(58), dp(58))
+            );
+
+            TextView name = makeText(
+                    t.name, 13,
+                    i == current ? C_ACCENT : C_TEXT,
+                    i == current
+            );
+
+            name.setGravity(Gravity.CENTER);
+            name.setPadding(0, dp(6), 0, 0);
+
+            tile.addView(name);
+
+            tile.setOnClickListener(v -> {
+
+                saveTheme(planetId, index);
+                planetView.setTheme(index);
+
+                if (holder[0] != null) {
+                    holder[0].dismiss();
+                }
+            });
+
+            row.addView(
+                    tile,
+                    new LinearLayout.LayoutParams(0, -2, 1f)
+            );
+        }
+
+        // 마지막 줄이 3칸이 안 차도 칸 너비가 같도록 빈 칸 채우기
+        int rest = PlanetWorldView.THEMES.length % columns;
+
+        if (rest != 0 && row != null) {
+
+            for (int k = rest; k < columns; k++) {
+                row.addView(
+                        new View(this),
+                        new LinearLayout.LayoutParams(0, 1, 1f)
+                );
+            }
+        }
+
+        holder[0] = new AlertDialog.Builder(
+                this, R.style.StarRing_LightDialog)
+                .setTitle("행성 테마")
+                .setView(content)
+                .setNegativeButton("닫기", null)
+                .create();
+
+        holder[0].show();
     }
 
     // ==========================================

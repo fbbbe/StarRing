@@ -44,6 +44,13 @@ public final class CourtNotice {
     }
 
     public static void show(Activity activity, String message) {
+        show(activity, message, false);
+    }
+
+    /**
+     * @param solidBackground true 면 불투명한 검정 배경 (뒤의 행성/별과 겹쳐도 글자가 잘 보임)
+     */
+    public static void show(Activity activity, String message, boolean solidBackground) {
         final ViewGroup root = activity.findViewById(android.R.id.content);
         if (root == null) {
             return;
@@ -56,7 +63,9 @@ public final class CourtNotice {
         view.setTextSize(15f);
         view.setTypeface(null, Typeface.BOLD);
         view.setGravity(Gravity.CENTER);
-        view.setBackgroundResource(R.drawable.court_pill_bg);
+        view.setBackgroundResource(solidBackground
+                ? R.drawable.court_pill_bg_solid
+                : R.drawable.court_pill_bg);
         view.setPadding((int) (20 * d), (int) (12 * d), (int) (20 * d), (int) (12 * d));
         view.setAlpha(0f);
 

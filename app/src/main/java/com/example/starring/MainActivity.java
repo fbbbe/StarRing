@@ -106,14 +106,25 @@ public class MainActivity extends AppCompatActivity {
                         Navigator.toMain(this);
                     } else if (status == null || GalaxyStatus.UNLINKED.equals(status)) {
                         // 상대가 연동을 해제했거나 은하계가 삭제됨 → 내 문서만 정리
-                        userRepository.clearGalaxyId(uid)
-                                .addOnSuccessListener(this, unused -> Navigator.toCoupleLink(this))
-                                .addOnFailureListener(this, this::showError);
+                        clearGalaxyAndRelink(uid);
                     } else {
                         // waiting / naming → 커플 연동 화면에서 이어서 진행
                         Navigator.toCoupleLink(this);
                     }
                 })
+                .addOnFailureListener(this, e -> {
+                    if (GalaxyRepository.isPermissionDenied(e)) {
+                        // 해제된 은하계는 rules상 조회 불가 → 위 unlinked와 같이 내 문서만 정리
+                        clearGalaxyAndRelink(uid);
+                    } else {
+                        showError(e);
+                    }
+                });
+    }
+
+    private void clearGalaxyAndRelink(String uid) {
+        userRepository.clearGalaxyId(uid)
+                .addOnSuccessListener(this, unused -> Navigator.toCoupleLink(this))
                 .addOnFailureListener(this, this::showError);
     }
 

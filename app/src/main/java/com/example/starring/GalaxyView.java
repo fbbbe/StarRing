@@ -51,8 +51,10 @@ public class GalaxyView extends View {
     );
 
     // 행성이 둥둥 떠 있는 정도: 위아래 폭(dp), 한 번 오르내리는 시간(ms)
-    private static final float PLANET_FLOAT_DP = 3f;
-    private static final float PLANET_FLOAT_MS = 4500f;
+    private static final float PLANET_FLOAT_DP = 5f;
+    private static final float PLANET_FLOAT_MS = 4300f;
+    // 메인 화면 행성 크기 배율 (1f = 기본, 2f = 2배)
+    private static final float PLANET_SIZE_SCALE = 2f;
 
     private final RectF drawRect = new RectF();
     private final float density;
@@ -73,6 +75,8 @@ public class GalaxyView extends View {
     private static final float BLACKHOLE_X_DP = 0f;
     private static final float BLACKHOLE_Y_DP = -170f;
     private static final float BLACKHOLE_SIZE_DP = 600f;
+    // 블랙홀을 누를 수 있는 반경(dp): 후광을 뺀 실제 모습 기준
+    private static final float BLACKHOLE_TAP_DP = 110f;
 
     private static final int[] CONSTELLATION_RESOURCES = {
             R.drawable.constellation_01,
@@ -103,6 +107,17 @@ public class GalaxyView extends View {
     private static final float SUPERNOVA_MIN_GAP = 100f;
     private static final float WHITE_DWARF_MIN_GAP = 80f;
     private static final float PLANET_MIN_GAP = 110f;
+
+    // 처음 화면(핸드폰 범위) 안에 행성을 놓기 위한 영역 (가운데 기준 절반 크기, dp)
+    private static final float PLANET_AREA_HALF_W = 165f;
+    private static final float PLANET_AREA_HALF_H = 240f;
+    // 행성이 다른 천체와 떨어져야 하는 최소 간격(dp)
+    private static final float PLANET_GAP = 20f;
+
+    // 블랙홀 주변에는 행성을 놓지 않음 (블랙홀 중심에서의 거리, dp)
+    private static final float BLACKHOLE_AVOID_DP = 190f;
+    // 행성 영역의 세로 중심을 아래로 내림 (dp)
+    private static final float PLANET_AREA_CENTER_Y = 70f;
 
     // 생성 가능한 최대 개수
     private static final int MAX_SPECIAL_BODIES = 20;
@@ -415,6 +430,82 @@ public class GalaxyView extends View {
     // 2. 천체 공통 배치
     // -----------------------------------
 
+    // 행성 전용 배치: 처음 화면 안의 직사각형 영역에 놓음
+    private Body placePlanet(int id, float width, float height, Random random) {
+
+        float scale = 1f;
+
+        while (true) {
+
+            // 행성이 화면 밖으로 삐져나오지 않도록 행성 크기만큼 안쪽에서 고름
+            float rangeX = Math.max(
+                    10f, PLANET_AREA_HALF_W * scale - width / 2f);
+
+            float rangeY = Math.max(
+                    10f, PLANET_AREA_HALF_H * scale - height / 2f);
+
+            for (int attempt = 0; attempt < 400; attempt++) {
+
+                float x = (random.nextFloat() * 2f - 1f) * rangeX;
+                float y = PLANET_AREA_CENTER_Y
+                        + (random.nextFloat() * 2f - 1f) * rangeY;
+
+                if (isFarEnoughForPlanet(x, y, width, height)) {
+
+                    Body body = new Body(
+                            PLANET, id, x, y, width, height, PLANET_MIN_GAP
+                    );
+
+                    reservedBodies.add(body);
+                    return body;
+                }
+            }
+
+            // 자리가 없으면 영역을 조금씩 넓힘 (행성이 많아졌을 때)
+            scale += 0.25f;
+        }
+    }
+
+    private boolean isFarEnoughForPlanet(
+            float x, float y, float width, float height) {
+
+        // 블랙홀과 너무 가까우면 제외 (행성 크기의 절반만큼 더 멀리)
+        double toBlackhole = Math.hypot(
+                x - BLACKHOLE_X_DP,
+                y - BLACKHOLE_Y_DP
+        );
+
+        if (toBlackhole < BLACKHOLE_AVOID_DP + Math.max(width, height) / 2f) {
+            return false;
+        }
+
+        for (Body other : reservedBodies) {
+
+            // 아직 화면에 안 나오는 초신성/백색왜성(3번째 이후)은 무시
+            if ((other.type == SUPERNOVA || other.type == WHITE_DWARF)
+                    && other.id > 2) {
+                continue;
+            }
+
+            float dx = Math.max(
+                    0f,
+                    Math.abs(x - other.x) - (width + other.width) / 2f
+            );
+
+            float dy = Math.max(
+                    0f,
+                    Math.abs(y - other.y) - (height + other.height) / 2f
+            );
+
+            if (Math.hypot(dx, dy) < PLANET_GAP) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+
     private Body placeBody(
             int type, int id,
             float width, float height,
@@ -659,22 +750,15 @@ public class GalaxyView extends View {
                 continue;
             }
 
-            // 행성 크기: 35~75dp
-            float width = 35f + random.nextFloat() * 40f;
+            // 행성 크기: 기본 35~75dp 에 배율 적용 (2배 = 70~150dp)
+            float width = (35f + random.nextFloat() * 40f) * PLANET_SIZE_SCALE;
 
             // PNG 원본 비율 유지
             float height = width
                     * bitmap.getHeight()
                     / (float) bitmap.getWidth();
 
-            Body body = placeBody(
-                    PLANET,
-                    i,
-                    width,
-                    height,
-                    PLANET_MIN_GAP,
-                    random
-            );
+            Body body = placePlanet(i, width, height, random);
 
             planetPositions.add(body);
         }
@@ -711,14 +795,26 @@ public class GalaxyView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
 
+        // 블랙홀이 있을 때 가끔 화면 전체가 흔들림 (평소엔 0)
+        canvas.save();
+        canvas.translate(blackholeEffect.shakeX(), blackholeEffect.shakeY());
+
         drawStars(canvas);
         drawBodies(canvas, visibleConstellations);
         drawBodies(canvas, visibleSpecialBodies);
         drawBodies(canvas, visiblePlanets);
         drawBlackhole(canvas);   // na가 추가
+
+        canvas.restore();
+
         // 행성이 떠다니도록 계속 다시 그림 (행성이 있을 때만)
         if (!visiblePlanets.isEmpty()) {
             postInvalidateDelayed(33L);
+        }
+
+        // 흔들리는 동안은 부드럽게 보이도록 프레임마다 다시 그림
+        if (blackholeEffect.isShaking()) {
+            postInvalidateOnAnimation();
         }
     }
 
@@ -757,7 +853,7 @@ public class GalaxyView extends View {
 
         // 이미지가 작아져도 누르기 쉽게 최소 24dp 반경은 보장
         float radius = Math.max(
-                BLACKHOLE_SIZE_DP * density * zoom / 2f,
+                BLACKHOLE_TAP_DP * density * zoom,
                 24f * density);
 
         float dx = upX - cx;
@@ -1146,24 +1242,16 @@ public class GalaxyView extends View {
                     float x = event.getX();
                     float y = event.getY();
 
-                    // 블랙홀 클릭을 우선 처리
-                    if (isTapOnBlackhole(x, y)) {
+                    // 행성을 먼저 확인하고, 행성이 아니면 블랙홀 처리
+                    String planetId = findTappedPlanet(x, y);
+
+                    if (planetId != null && planetClickListener != null) {
+
+                        planetClickListener.onPlanetClick(planetId);
+
+                    } else if (isTapOnBlackhole(x, y)) {
 
                         blackholeClickListener.onBlackholeClick();
-
-                    } else {
-
-                        // 행성 클릭 처리
-                        String planetId =
-                                findTappedPlanet(x, y);
-
-                        if (planetId != null
-                                && planetClickListener != null) {
-
-                            planetClickListener.onPlanetClick(
-                                    planetId
-                            );
-                        }
                     }
 
                     performClick();
