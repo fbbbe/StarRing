@@ -18,6 +18,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.starring.common.BlackholeLock;
 import com.example.starring.common.GalaxyDates;
 import com.example.starring.common.Navigator;
 import com.example.starring.court.StarConsumption;
@@ -173,6 +174,26 @@ public class GalaxyActivity extends Activity {
 
         updateBlackholeLabel();
         updateGalaxy();
+
+        // [sh] 블랙홀 잠금: 막힌 메뉴 흐리게
+        if (solarMenu != null) {
+            boolean locked = BlackholeLock.isLocked();
+            for (int index : BLACKHOLE_LOCKED_MENUS) {
+                solarMenu.setItemLocked(index, locked);
+            }
+        }
+    }
+
+    // [sh] 블랙홀 잠금 대상 메뉴: 수성(행성 생성), 화성(이름 변경), 토성(행성 둘러보기)
+    private static final int[] BLACKHOLE_LOCKED_MENUS = {0, 3, 5};
+
+    private static boolean isBlackholeLockedMenu(int index) {
+        for (int locked : BLACKHOLE_LOCKED_MENUS) {
+            if (locked == index) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ====================================
@@ -223,6 +244,13 @@ public class GalaxyActivity extends Activity {
 
         // 행성 클릭 시 상세 화면
         galaxyView.setOnPlanetClickListener(planetId -> {
+
+            // [sh] 블랙홀 잠금: 행성 보기는 허용, 편집은 상세 화면에서 막힘 → 미리 안내
+            if (BlackholeLock.isLocked()) {
+                Toast.makeText(this,
+                        "블랙홀이 해결될 때까지 행성은 보기만 할 수 있어요.",
+                        Toast.LENGTH_SHORT).show();
+            }
 
             Intent intent = new Intent(
                     GalaxyActivity.this,
@@ -515,6 +543,12 @@ public class GalaxyActivity extends Activity {
     // ====================================
 
     private void onPlanetSelected(int index) {
+
+        // [sh] 블랙홀 잠금: 해결 전에는 행성 생성·이름 변경·둘러보기 막음 (메뉴는 열어 둔 채 안내)
+        if (isBlackholeLockedMenu(index)
+                && BlackholeLock.blockIfLocked(this)) {
+            return;
+        }
 
         setMenuOpen(false);
 

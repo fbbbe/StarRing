@@ -2,6 +2,8 @@
 package com.example.starring;
 
 import android.app.Activity;
+
+import com.example.starring.common.BlackholeLock;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -42,6 +44,9 @@ public class GalaxyRenameActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // [sh] 블랙홀 잠금: 이름 변경은 블랙홀 해결 전까지 막음 (변경 중에는 닫지 않음)
+        BlackholeLock.guardScreen(this, () -> !saving);
 
         createScreen();
         loadGalaxy();
@@ -361,6 +366,9 @@ public class GalaxyRenameActivity extends Activity {
                 || currentName == null) {
             return;
         }
+
+        // [sh] 블랙홀 잠금: 화면을 연 뒤 블랙홀이 생긴 경우
+        if (BlackholeLock.blockIfLocked(this)) return;
 
         String newName = editName
                 .getText()

@@ -153,6 +153,9 @@ public class SolarOrbitMenuView extends FrameLayout {
 
     private final List<Item> data = new ArrayList<>();
     private final List<View> itemViews = new ArrayList<>();
+    // [sh] 블랙홀 잠금: 잠긴 항목은 흐리게만 표시 (클릭 차단은 GalaxyActivity가 담당)
+    private static final float LOCKED_ALPHA = 0.35f;
+    private boolean[] locked = new boolean[0];
     private final List<PlanetImageView> icons = new ArrayList<>();
     private float[] labelW = new float[0];   // 이름 가로 폭 추정 (px)
     private float[] labelH = new float[0];   // 이름 세로 높이 추정 (px)
@@ -263,6 +266,13 @@ public class SolarOrbitMenuView extends FrameLayout {
         requestLayout();
     }
 
+    /** [sh] 블랙홀 잠금: index번 항목을 흐리게 표시할지 */
+    public void setItemLocked(int index, boolean isLocked) {
+        if (index < 0 || index >= locked.length || locked[index] == isLocked) return;
+        locked[index] = isLocked;
+        applyState();
+    }
+
     public void setOnItemSelectedListener(OnItemSelectedListener l) {
         listener = l;
     }
@@ -279,6 +289,7 @@ public class SolarOrbitMenuView extends FrameLayout {
         data.addAll(items);
 
         int n = data.size();
+        locked = new boolean[n];   // [sh] 블랙홀 잠금
         labelW = new float[n];
         labelH = new float[n];
 
@@ -554,7 +565,7 @@ public class SolarOrbitMenuView extends FrameLayout {
             v.setTranslationY((itemCy[i] - sunCy) * (f - 1f));
             v.setScaleX(itemScale);
             v.setScaleY(itemScale);
-            v.setAlpha(itemAlpha);
+            v.setAlpha(i < locked.length && locked[i] ? itemAlpha * LOCKED_ALPHA : itemAlpha);   // [sh] 블랙홀 잠금
         }
 
         invalidate();

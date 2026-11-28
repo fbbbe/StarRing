@@ -1,6 +1,8 @@
 package com.example.starring;
 
 import android.app.DatePickerDialog;
+
+import com.example.starring.common.BlackholeLock;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -176,6 +178,9 @@ public class PlanetCreateActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // [sh] 블랙홀 잠금: 행성 생성·사진 추가는 블랙홀 해결 전까지 막음 (저장 중에는 닫지 않음)
+        BlackholeLock.guardScreen(this, () -> !saving);
 
         // 기존 행성에 사진을 추가하는 경우에만 ID 전달됨
         existingPlanetId = getIntent()
@@ -953,6 +958,9 @@ public class PlanetCreateActivity extends AppCompatActivity {
     private void savePlanet() {
 
         if (saving) return;
+
+        // [sh] 블랙홀 잠금: 화면을 연 뒤 블랙홀이 생긴 경우
+        if (BlackholeLock.blockIfLocked(this)) return;
 
         if (photos.isEmpty()) {
             message("사진을 먼저 선택해주세요.");

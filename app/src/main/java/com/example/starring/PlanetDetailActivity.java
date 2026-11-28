@@ -2,6 +2,8 @@
 package com.example.starring;
 
 import android.app.Activity;
+
+import com.example.starring.common.BlackholeLock;
 import android.app.AlertDialog;
 import android.app.DatePickerDialog;
 import android.graphics.Color;
@@ -164,6 +166,8 @@ public class PlanetDetailActivity extends Activity {
         if (browseMode) {
             ArrayList<String> paths = getIntent().getStringArrayListExtra(EXTRA_BROWSE_PATHS);
             if (paths != null) browsePaths.addAll(paths);
+            // [sh] 블랙홀 잠금: 둘러보기는 블랙홀 해결 전까지 막음 (데이터가 늦게 와도 닫힘)
+            BlackholeLock.guardScreen(this);
         }
         createScreen();
 
@@ -410,6 +414,9 @@ public class PlanetDetailActivity extends Activity {
             if (saving) {
                 return;
             }
+
+            // [sh] 블랙홀 잠금: 보기만 허용, 사진 추가 막음
+            if (BlackholeLock.blockIfLocked(this)) return;
 
             String planetId = currentPlanetId;
 
@@ -1348,6 +1355,9 @@ public class PlanetDetailActivity extends Activity {
 
     private void openEditDialog() {
 
+        // [sh] 블랙홀 잠금: 보기만 허용, 사진 편집 막음
+        if (BlackholeLock.blockIfLocked(this)) return;
+
         if (saving
                 || selectedIndex < 0
                 || selectedIndex >= photos.size()) {
@@ -1606,6 +1616,9 @@ public class PlanetDetailActivity extends Activity {
 
     /** 테마를 고르는 창: 동그란 미리보기를 누르면 바로 적용 */
     private void showThemePicker() {
+
+        // [sh] 블랙홀 잠금: 보기만 허용, 테마 변경 막음
+        if (BlackholeLock.blockIfLocked(this)) return;
 
         if (currentPlanetId == null || planetView == null) {
             return;
@@ -2236,6 +2249,8 @@ public class PlanetDetailActivity extends Activity {
 
     private void toggleLike() {
         if (planetRef == null || likeBusy) return;
+        // [sh] 블랙홀 잠금: 하트 막음
+        if (BlackholeLock.blockIfLocked(this)) return;
         FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
         if (user == null) { message("로그인이 필요합니다."); return; }
         likeBusy = true;
@@ -2254,6 +2269,8 @@ public class PlanetDetailActivity extends Activity {
 
     private void togglePublication() {
         if (browseMode || planetRef == null) return;
+        // [sh] 블랙홀 잠금: 보기만 허용, 공개 전환 막음
+        if (BlackholeLock.blockIfLocked(this)) return;
         if (publicPlanet) {
             updatePublication(false);
         } else {
