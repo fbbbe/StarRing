@@ -4,6 +4,19 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
+    <!-- [sh] 로그인 배경 이미지 + 글자 가독성용 어두운 막, 그 위에 기존 반짝이는 별 -->
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:scaleType="centerCrop"
+        android:src="@drawable/bg_login_space" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#59000000" />
+
     <com.example.starring.common.StarFieldView
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
