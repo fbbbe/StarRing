@@ -18,6 +18,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.starring.chat.ChatActivity;
 import com.example.starring.common.BlackholeLock;
 import com.example.starring.common.GalaxyDates;
 import com.example.starring.common.Navigator;
@@ -72,7 +73,7 @@ public class GalaxyActivity extends Activity {
             "블랙홀 생성",       // 금성
             "우주 재판장",       // 지구
             "은하계 이름 변경",  // 화성
-            "은하계",            // 목성
+            "커플 채팅",         // 목성  [sh] 커플 채팅 (원래 "은하계", 이동 없음)
             "행성 둘러보기",     // 토성
             "로그아웃",          // 천왕성
             "탈퇴/연결 끊기"     // 해왕성
@@ -595,7 +596,13 @@ public class GalaxyActivity extends Activity {
                 break;
 
             case 4:
-                // 목성 - 은하계 (이미 메인 은하계 화면이므로 이동 없음)
+                // [sh] 커플 채팅: 역할이 없던 목성("은하계", 이동 없음)에 연결. 블랙홀 잠금 대상 아님
+                startActivity(
+                        new Intent(
+                                this,
+                                ChatActivity.class
+                        )
+                );
                 break;
 
             case 5:

@@ -1215,6 +1215,47 @@ service cloud.firestore {
 
 
     // ==================================
+    // 8-3. 커플 채팅
+    // ==================================
+
+    match /galaxies/{galaxyId}/messages/{messageId} {
+
+      // 은하계 멤버만 읽기 (연동 해제된 은하계는 읽기 불가)
+      allow get, list: if isActiveGalaxyMember(galaxyId);
+
+      // 본인 이름(senderUid)으로만 전송, text 1~500자, 시각은 서버 시각
+      allow create: if isActiveGalaxyMember(galaxyId)
+
+      && request.resource.data.keys().hasOnly([
+        'senderUid',
+        'text',
+        'createdAt'
+      ])
+
+      && request.resource.data.keys().hasAll([
+        'senderUid',
+        'text',
+        'createdAt'
+      ])
+
+      && request.resource.data.senderUid
+      == request.auth.uid
+
+      && request.resource.data.text is string
+
+      && request.resource.data.text.size() >= 1
+
+      && request.resource.data.text.size() <= 500
+
+      && request.resource.data.createdAt == request.time;
+
+      // 보낸 메시지는 수정·삭제 불가
+      allow update, delete: if false;
+
+    }
+
+
+    // ==================================
     // 9. 팀원 담당 컬렉션 임시 규칙
     // ==================================
 
@@ -1225,18 +1266,6 @@ service cloud.firestore {
     }
 
     match /blackholes/{document=**} {
-
-      allow read, write: if signedIn();
-
-    }
-
-    match /trials/{document=**} {
-
-      allow read, write: if signedIn();
-
-    }
-
-    match /messages/{document=**} {
 
       allow read, write: if signedIn();
 

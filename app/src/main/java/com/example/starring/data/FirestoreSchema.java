@@ -53,6 +53,13 @@ public final class FirestoreSchema {
     public static final String CODE_OWNER_UID = "ownerUid";
     public static final String CODE_CREATED_AT = "createdAt";
 
+    // galaxies/{galaxyId}/messages 하위 컬렉션 (커플 채팅) 필드
+    public static final String MESSAGES = "messages";
+    public static final String MESSAGE_SENDER_UID = "senderUid";
+    public static final String MESSAGE_TEXT = "text";
+    /** serverTimestamp — 보낸 직후 로컬 스냅샷에서는 null */
+    public static final String MESSAGE_CREATED_AT = "createdAt";
+
     /** galaxies.status 값 */
     public static final class GalaxyStatus {
         private GalaxyStatus() {

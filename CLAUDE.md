@@ -24,7 +24,8 @@
 | `auth` | 로그인/회원가입 (Firebase Auth, ViewModel) |
 | `couple` | 커플 연동 화면, 초대코드, 만난 날 검증(`StartDatePolicy`), 연동 해제(`UnlinkHelper`) |
 | `court` | 우주 재판장 — 블랙홀 글쓰기/투표/화해, 삼킨 별 계산(`StarConsumption`), 연출(`BlackholeEffect`, `AlienFightView`) |
-| `common` | 공용 유틸 — 날짜 계산(`GalaxyDates`), 화면 이동(`Navigator`), 에러 문구(`ErrorMessages`) 등 |
+| `common` | 공용 유틸 — 날짜 계산(`GalaxyDates`), 화면 이동(`Navigator`), 에러 문구(`ErrorMessages`), 블랙홀 잠금(`BlackholeLock`) 등 |
+| `chat` | 커플 채팅(`ChatActivity`, 메시지 검사 `ChatPolicy`). 메뉴 목성에서 진입 |
 | `data` | Firestore 필드 상수(`FirestoreSchema`), `UserRepository`, `GalaxyRepository` |
 | `galaxy` | `GalaxyPlaceholderActivity`만 남음 (예전 임시 메인, Manifest 등록만 되어 있고 화면 이동에서는 안 씀) |
 | `planet`, `constellation` | 비어 있음(`.gitkeep`). 행성은 루트, 별자리는 `GalaxyView`에 구현 |
@@ -34,10 +35,11 @@
 화면 이동은 `common/Navigator`를 통한다 (`toMain()` = `GalaxyLoadingActivity`).
 
 ### Firestore 컬렉션
-`users`, `galaxies`(+ 하위 `planets`), `inviteCodes`, `courtPosts`(+ 하위 `votes`, `lessons`). 보안 규칙은 루트 `firestore.rules` (팀장 관리, 콘솔 수동 배포).
+`users`, `galaxies`(+ 하위 `planets`(+ `likes`), `messages`), `inviteCodes`, `courtPosts`(+ 하위 `votes`, `lessons`). 보안 규칙은 루트 `firestore.rules` (팀장 관리, 콘솔 수동 배포). 인덱스는 `firestore.indexes.json` (`firebase deploy --only firestore:indexes`로 인덱스만 배포).
 
 ### 현재 상태
-- 커플 연동·은하계 메인·우주 재판장·행성이 구현됨. 채팅은 미구현.
+- 커플 연동·은하계 메인·우주 재판장·행성·행성 둘러보기·커플 채팅이 구현됨.
+- 블랙홀(화해 전 재판 글)이 있는 동안 행성 생성·사진 추가·이름 변경·둘러보기·하트·행성 편집은 앱에서 막힘(`common/BlackholeLock`). 투표/화해·재판장·로그아웃·소멸·채팅·행성 보기는 허용.
 - 은하계 이름은 생성할 때 입력한다. `CoupleLinkActivity`의 NAMING 패널/`nameGalaxy`는 코드에 남아 있지만 현재 흐름에서는 쓰지 않음 (rules상 이름 변경 불가).
 - `StarRingApp`의 Cloudinary `MediaManager` 초기화는 `cloud_name`이 여전히 플레이스홀더이고 실제로 쓰이지 않음. 사진 업로드는 `PlanetCreateActivity`가 자체 설정으로 처리.
 
@@ -62,7 +64,7 @@
    - 우측 상단 "OO은하계 탄생 OO일" (datingStartDate 기준)
 3. **커뮤니티 판사** — 블랙홀 생성 → 다른 커플이 익명 투표, 30분마다 애기별 1개 삼킴, 해결 시 삼킨 별 반환
 4. **행성** — 월 1개, 사진 저장, 클릭 시 확대, 외계인 방문 하트
-5. **채팅** — 마지막 단계
+5. **채팅** — `galaxies/{galaxyId}/messages` (senderUid, text 1~500자, createdAt serverTimestamp). 최근 50개 실시간 + 위로 스크롤 시 50개씩. 푸시 알림 없음
 
 ## 작업 규칙
 - 한 번에 기능 하나씩 구현하고, 동작 확인 후 커밋.
